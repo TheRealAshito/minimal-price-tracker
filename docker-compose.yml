@@ -1,0 +1,11 @@
+services:
+  price-tracker:
+    build: .
+    container_name: minimal-price-tracker
+    ports:
+      - "127.0.0.1:8035:8035"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=America/Sao_Paulo
+    restart: unless-stopped

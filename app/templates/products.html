@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Produtos - Price Tracker{% endblock %}
+{% block nav_products %}text-white bg-dark-700{% endblock %}
+
+{% block content %}
+<div class="flex flex-col lg:flex-row gap-6">
+
+    <!-- Filter Sidebar -->
+    <aside class="w-full lg:w-64 shrink-0">
+        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Filtros</h3>
+
+            <form method="get" action="/products" class="space-y-4">
+                <!-- Store Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Loja</label>
+                    <select name="store" class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                        <option value="">Todas</option>
+                        <option value="kabum" {% if store_filter == 'kabum' %}selected{% endif %}>KaBuM!</option>
+                        <option value="shopee" {% if store_filter == 'shopee' %}selected{% endif %}>Shopee</option>
+                        <option value="amazon" {% if store_filter == 'amazon' %}selected{% endif %}>Amazon</option>
+                    </select>
+                </div>
+
+                <!-- Status Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                    <select name="status" class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                        <option value="">Todos</option>
+                        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Ativo</option>
+                        <option value="failing" {% if status_filter == 'failing' %}selected{% endif %}>Com falha</option>
+                        <option value="disabled" {% if status_filter == 'disabled' %}selected{% endif %}>Desativado</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm">
+                    Aplicar Filtros
+                </button>
+                <a href="/products" class="block w-full text-center bg-dark-700 hover:bg-dark-600 text-gray-300 font-medium py-2 px-4 rounded-md transition-colors text-sm">
+                    Limpar Filtros
+                </a>
+            </form>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 min-w-0">
+
+        <!-- Add Product Form -->
+        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4">Adicionar Produto</h2>
+            <form method="post" action="/products/add" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Nome</label>
+                    <input type="text" name="name" required
+                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                           placeholder="Ex: RTX 4070 Super">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">URL do Produto</label>
+                    <input type="url" name="url" required
+                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                           placeholder="https://...">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Loja</label>
+                    <select name="store" class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                        <option value="auto">Auto-detectar</option>
+                        <option value="kabum">KaBuM!</option>
+                        <option value="shopee">Shopee</option>
+                        <option value="amazon">Amazon</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-md transition-colors text-sm flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Adicionar
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Products Table -->
+        <div class="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden">
+            <div class="px-5 py-4 border-b border-dark-700 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">Produtos ({{ products|length }})</h2>
+            </div>
+
+            {% if products %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-400 text-xs uppercase tracking-wider border-b border-dark-700">
+                            <th class="px-5 py-3">Nome</th>
+                            <th class="px-5 py-3">Loja</th>
+                            <th class="px-5 py-3 text-right">Preço Atual</th>
+                            <th class="px-5 py-3 text-center">Status</th>
+                            <th class="px-5 py-3 text-right">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-dark-700">
+                        {% for p in products %}
+                        <tr class="hover:bg-dark-700/50 transition-colors">
+                            <td class="px-5 py-4">
+                                <a href="/products/{{ p.id }}" class="text-white hover:text-emerald-400 font-medium transition-colors">
+                                    {{ p.name }}
+                                </a>
+                                <div class="text-xs text-gray-500 mt-1 truncate max-w-xs">{{ p.url }}</div>
+                            </td>
+                            <td class="px-5 py-4">
+                                {% if p.store == 'kabum' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-900/50 text-orange-300 border border-orange-700">
+                                        KaBuM!
+                                    </span>
+                                {% elif p.store == 'shopee' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">
+                                        Shopee
+                                    </span>
+                                {% elif p.store == 'amazon' %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-900/50 text-yellow-300 border border-yellow-700">
+                                        Amazon
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">
+                                        {{ p.store }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-4 text-right font-mono text-white">
+                                {% if p.current_price is not none %}
+                                    R$ {{ "%.2f"|format(p.current_price) }}
+                                {% else %}
+                                    <span class="text-gray-500">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-4 text-center">
+                                {% if not p.active %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-600">
+                                        Desativado
+                                    </span>
+                                {% elif p.consecutive_failures > 0 %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">
+                                        {{ p.consecutive_failures }} falha{{ 's' if p.consecutive_failures > 1 else '' }}
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">
+                                        Ativo
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-4">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="/products/{{ p.id }}"
+                                       class="inline-flex items-center gap-1 bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                                       title="Ver detalhes">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                        Ver
+                                    </a>
+                                    <form method="post" action="/products/{{ p.id }}/scrape" class="inline">
+                                        <button type="submit"
+                                                class="inline-flex items-center gap-1 bg-blue-900/50 hover:bg-blue-800 text-blue-300 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-blue-700"
+                                                title="Scrapar agora">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                            </svg>
+                                            Scrape
+                                        </button>
+                                    </form>
+                                    <form method="post" action="/products/{{ p.id }}/toggle" class="inline">
+                                        <button type="submit"
+                                                class="inline-flex items-center gap-1 {% if p.active %}bg-amber-900/50 hover:bg-amber-800 text-amber-300 border-amber-700{% else %}bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 border-emerald-700{% endif %} px-3 py-1.5 rounded text-xs font-medium transition-colors border"
+                                                title="{% if p.active %}Desativar{% else %}Ativar{% endif %}">
+                                            {% if p.active %}
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                </svg>
+                                                Pausar
+                                            {% else %}
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                </svg>
+                                                Ativar
+                                            {% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="post" action="/products/{{ p.id }}/delete" class="inline"
+                                          onsubmit="return confirm('Tem certeza que deseja excluir este produto?')">
+                                        <button type="submit"
+                                                class="inline-flex items-center gap-1 bg-red-900/50 hover:bg-red-800 text-red-300 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-red-700"
+                                                title="Excluir">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                            </svg>
+                                            Excluir
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <!-- Empty State -->
+            <div class="px-5 py-16 text-center">
+                <svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                </svg>
+                <h3 class="text-lg font-medium text-gray-400 mb-2">Nenhum produto encontrado</h3>
+                <p class="text-sm text-gray-500 mb-4">
+                    {% if store_filter or status_filter %}
+                        Nenhum produto corresponde aos filtros selecionados. Tente limpar os filtros.
+                    {% else %}
+                        Adicione seu primeiro produto usando o formulário acima.
+                    {% endif %}
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

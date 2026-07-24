@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Minimal Price Tracker{% endblock %}
+
+{# ───────────── Summary Cards ───────────── #}
+{% block content %}
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-3 gap-4">
+    <!-- Active Products -->
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex items-center gap-4">
+        <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center text-2xl">📦</div>
+        <div>
+            <p class="text-sm text-slate-400">Produtos Ativos</p>
+            <p class="text-2xl font-bold text-white">{{ total_active | default(0) }}</p>
+        </div>
+    </div>
+    <!-- Total Products -->
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex items-center gap-4">
+        <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-indigo-500/10 flex items-center justify-center text-2xl">🗂️</div>
+        <div>
+            <p class="text-sm text-slate-400">Total de Produtos</p>
+            <p class="text-2xl font-bold text-white">{{ total_products | default(0) }}</p>
+        </div>
+    </div>
+    <!-- Failing -->
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex items-center gap-4">
+        <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center text-2xl">⚠️</div>
+        <div>
+            <p class="text-sm text-slate-400">Com Falha</p>
+            <p class="text-2xl font-bold {% if failing and failing > 0 %}text-red-400{% else %}text-emerald-400{% endif %}">{{ failing | default(0) }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Price Trend Chart -->
+<div class="bg-slate-900 rounded-xl border border-slate-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-4">📈 Comparação de Preços</h2>
+    <div class="relative" style="height: 320px;">
+        <canvas id="comparisonChart"></canvas>
+    </div>
+</div>
+
+<!-- Recent Prices Table -->
+<div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-800">
+        <h2 class="text-lg font-semibold text-white">🕐 Preços Recentes</h2>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-slate-400 text-xs uppercase tracking-wider">
+                    <th class="px-6 py-3">Produto</th>
+                    <th class="px-6 py-3">Loja</th>
+                    <th class="px-6 py-3 text-right">Preço</th>
+                    <th class="px-6 py-3 text-right">Data</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800">
+                {% for item in recent_prices | default([]) %}
+                <tr class="hover:bg-slate-800/50 transition-colors">
+                    <td class="px-6 py-3 font-medium text-white">{{ item.name }}</td>
+                    <td class="px-6 py-3">
+                        {% set store = item.store | lower %}
+                        {% if store == 'kabum' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">KaBuM!</span>
+                        {% elif store == 'shopee' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-500/10 text-orange-400 border border-orange-500/20">Shopee</span>
+                        {% elif store == 'amazon' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">Amazon</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">{{ item.store }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3 text-right font-mono text-emerald-400">R$ {{ "%.2f" | format(item.price) }}</td>
+                    <td class="px-6 py-3 text-right text-slate-500">{{ item.scraped_at }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="px-6 py-8 text-center text-slate-500">Nenhum preço registrado ainda.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{# ───────────── Left Sidebar ───────────── #}
+{% block left_sidebar %}
+<div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
+    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Filtros Rápidos</h3>
+    <div class="space-y-2">
+        {% for store in ['KaBuM', 'Shopee', 'Amazon'] %}
+        <label class="flex items-center gap-2 text-sm text-slate-300 hover:text-white cursor-pointer">
+            <input type="checkbox" checked class="rounded bg-slate-800 border-slate-600 text-indigo-500 focus:ring-indigo-500">
+            <span>{{ store }}</span>
+        </label>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
+    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Estatísticas</h3>
+    <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+            <dt class="text-slate-500">Menor preço hoje</dt>
+            <dd class="text-emerald-400 font-mono">R$ {{ "%.2f" | format(lowest_today | default(0)) }}</dd>
+        </div>
+        <div class="flex justify-between">
+            <dt class="text-slate-500">Maior preço hoje</dt>
+            <dd class="text-red-400 font-mono">R$ {{ "%.2f" | format(highest_today | default(0)) }}</dd>
+        </div>
+        <div class="flex justify-between">
+            <dt class="text-slate-500">Scrapes hoje</dt>
+            <dd class="text-white font-mono">{{ scrapes_today | default(0) }}</dd>
+        </div>
+    </dl>
+</div>
+{% endblock %}
+
+{# ───────────── Right Sidebar (Activity Feed) ───────────── #}
+{% block right_sidebar %}
+<div class="bg-slate-900 rounded-xl border border-slate-800 p-4">
+    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Atividade Recente</h3>
+    {% if activity_feed is defined and activity_feed %}
+    <ul class="space-y-3">
+        {% for event in activity_feed %}
+        <li class="flex items-start gap-2 text-sm">
+            <span class="flex-shrink-0 mt-0.5">
+                {% if event.type == 'price_drop' %}🟢{% elif event.type == 'price_rise' %}🔴{% elif event.type == 'alert' %}🔔{% elif event.type == 'error' %}⚠️{% else %}⚪{% endif %}
+            </span>
+            <div>
+                <p class="text-slate-300">{{ event.message }}</p>
+                <p class="text-xs text-slate-600 mt-0.5">{{ event.time }}</p>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-slate-500 text-sm">Nenhuma atividade recente.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{# ───────────── Chart.js Script ───────────── #}
+{% block scripts %}
+<script>
+(function() {
+    const raw = {{ comparison | default({}) | tojson }};
+    const ctx = document.getElementById('comparisonChart').getContext('2d');
+
+    // Build datasets from comparison object: { "Product Name": { "kabum": [...], "amazon": [...] } }
+    const storeColors = {
+        kabum:   { bg: 'rgba(234, 179, 8, 0.15)',  border: 'rgb(234, 179, 8)' },
+        shopee:  { bg: 'rgba(249, 115, 22, 0.15)',  border: 'rgb(249, 115, 22)' },
+        amazon:  { bg: 'rgba(59, 130, 246, 0.15)',  border: 'rgb(59, 130, 246)' }
+    };
+    const defaultColor = { bg: 'rgba(148, 163, 184, 0.15)', border: 'rgb(148, 163, 184)' };
+
+    const datasets = [];
+    const labels = new Set();
+
+    for (const [productName, stores] of Object.entries(raw)) {
+        for (const [store, points] of Object.entries(stores)) {
+            const colors = storeColors[store.toLowerCase()] || defaultColor;
+            points.forEach(p => labels.add(p.date));
+            datasets.push({
+                label: `${productName} (${store})`,
+                data: points.map(p => ({ x: p.date, y: p.price })),
+                borderColor: colors.border,
+                backgroundColor: colors.bg,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointHoverRadius: 6
+            });
+        }
+    }
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [...labels].sort(),
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: { color: '#94a3b8', boxWidth: 12, padding: 16 }
+                },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#cbd5e1',
+                    borderColor: '#334155',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(ctx) {
+                            return `${ctx.dataset.label}: R$ ${ctx.parsed.y.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#64748b' },
+                    grid: { color: '#1e293b' }
+                },
+                y: {
+                    ticks: {
+                        color: '#64748b',
+                        callback: v => 'R$ ' + v.toFixed(2)
+                    },
+                    grid: { color: '#1e293b' }
+                }
+            }
+        }
+    });
+})();
+</script>
+{% endblock %}

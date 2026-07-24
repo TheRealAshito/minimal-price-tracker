@@ -1,0 +1,45 @@
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from app.database import get_db
+
+router = APIRouter(prefix="/alerts")
+templates = Jinja2Templates(directory="app/templates")
+
+
+@router.get("", response_class=HTMLResponse)
+async def alerts_page(request: Request):
+    db = await get_db()
+    try:
+        # Get recent price alerts (drops below thresholds)
+        cursor = await db.execute("""
+            SELECT p.name, p.store, p.url, p.alert_price_abs, p.alert_price_pct,
+                   p.alert_below_mean, ph.price, ph.scraped_at
+            FROM price_history ph
+            JOIN products p ON p.id = ph.product_id
+            WHERE ph.status = 'success'
+            AND (
+                (p.alert_price_abs IS NOT NULL AND ph.price <= p.alert_price_abs)
+                OR (p.alert_below_mean = 1)
+            )
+            ORDER BY ph.scraped_at DESC
+            LIMIT 50
+        """)
+        triggered = [dict(row) for row in await cursor.fetchall()]
+
+        # Get products with failures
+        cursor2 = await db.execute("""
+            SELECT name, store, url, consecutive_failures, active
+            FROM products WHERE consecutive_failures > 0
+            ORDER BY consecutive_failures DESC
+        """)
+        failures = [dict(row) for row in await cursor2.fetchall()]
+
+    finally:
+        await db.close()
+
+    return templates.TemplateResponse("alerts.html", {
+        "request": request,
+        "triggered": triggered,
+        "failures": failures,
+    })

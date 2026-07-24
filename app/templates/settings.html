@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações - Price Tracker{% endblock %}
+{% block nav_settings %}text-white bg-dark-700{% endblock %}
+
+{% block content %}
+<div class="flex flex-col lg:flex-row gap-6">
+
+    <!-- Left Sidebar: System Info -->
+    <aside class="w-full lg:w-64 shrink-0 space-y-4">
+        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Informações do Sistema</h3>
+            <div class="space-y-3">
+                <div>
+                    <div class="text-xs text-gray-500">Produtos cadastrados</div>
+                    <div class="text-xl font-bold text-white">{{ product_count }}</div>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-500">Registros de preço</div>
+                    <div class="text-xl font-bold text-white">{{ history_count }}</div>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-500">Tamanho do banco de dados</div>
+                    <div class="text-xl font-bold text-white">{{ db_size_mb }} MB</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Backup & Restauração</h3>
+            <div class="space-y-3">
+                <form method="post" action="/settings/backup">
+                    <button type="submit" class="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        Baixar Backup
+                    </button>
+                </form>
+                <form method="post" action="/settings/restore" enctype="multipart/form-data" class="space-y-2">
+                    <label class="block text-xs text-gray-500">Restaurar de arquivo .db</label>
+                    <input type="file" name="file" accept=".db"
+                           class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-dark-700 file:text-gray-300 hover:file:bg-dark-600 file:cursor-pointer">
+                    <button type="submit" class="w-full inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm"
+                            onclick="return confirm('Atenção: a restauração substituirá todos os dados atuais. Deseja continuar?')">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                        Restaurar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 min-w-0 space-y-6">
+
+        <!-- Status Messages -->
+        {% if request.query_params.get('restored') %}
+        <div class="bg-emerald-900/50 border border-emerald-700 rounded-lg px-5 py-3 flex items-center gap-3">
+            <svg class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="text-sm text-emerald-300">Banco de dados restaurado com sucesso!</span>
+        </div>
+        {% endif %}
+        {% if request.query_params.get('error') == 'invalid_db' %}
+        <div class="bg-red-900/50 border border-red-700 rounded-lg px-5 py-3 flex items-center gap-3">
+            <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="text-sm text-red-300">Arquivo inválido. Envie um banco de dados SQLite (.db) válido.</span>
+        </div>
+        {% endif %}
+
+        <!-- NTFY Configuration -->
+        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+            <div class="flex items-center gap-3 mb-4">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                <h2 class="text-lg font-semibold text-white">Configuração NTFY</h2>
+            </div>
+            <p class="text-sm text-gray-400 mb-4">
+                Configure o servidor <a href="https://ntfy.sh" target="_blank" class="text-blue-400 hover:text-blue-300">ntfy</a>
+                para receber notificações push quando alertas forem disparados.
+            </p>
+            <form method="post" action="/settings/ntfy" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">URL do Servidor</label>
+                    <input type="text" name="ntfy_url"
+                           value="{{ config.get('ntfy_url', 'https://ntfy.sh') }}"
+                           placeholder="https://ntfy.sh"
+                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Porta</label>
+                    <input type="text" name="ntfy_port"
+                           value="{{ config.get('ntfy_port', '') }}"
+                           placeholder="443 (padrão)"
+                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Tópico</label>
+                    <input type="text" name="ntfy_topic"
+                           value="{{ config.get('ntfy_topic', '') }}"
+                           placeholder="meu-topico"
+                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                </div>
+                <div class="sm:col-span-3">
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-md transition-colors text-sm">
+                        Salvar Configuração NTFY
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Scrape Interval -->
+        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+            <div class="flex items-center gap-3 mb-4">
+                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <h2 class="text-lg font-semibold text-white">Intervalo de Scraping</h2>
+            </div>
+            <p class="text-sm text-gray-400 mb-4">
+                Define com que frequência os preços são verificados automaticamente.
+            </p>
+            <form method="post" action="/settings/interval" class="flex items-end gap-4">
+                <div class="w-40">
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Horas</label>
+                    <input type="number" name="scrape_interval_hours" min="1" max="168"
+                           value="{{ config.get('scrape_interval_hours', '6') }}"
+                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                </div>
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-md transition-colors text-sm">
+                    Salvar Intervalo
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Right Sidebar: Tips -->
+    <aside class="w-full lg:w-64 shrink-0">
+        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Dicas & Ajuda</h3>
+            <div class="space-y-4 text-sm text-gray-400">
+                <div>
+                    <h4 class="text-gray-300 font-medium mb-1">🔔 NTFY</h4>
+                    <p>Use o app <strong>ntfy</strong> no celular para receber notificações em tempo real. Basta assinar o mesmo tópico configurado aqui.</p>
+                </div>
+                <div>
+                    <h4 class="text-gray-300 font-medium mb-1">⏱️ Intervalo</h4>
+                    <p>Recomendamos 4–6 horas para a maioria dos produtos. Intervalos muito curtos podem resultar em bloqueio pelas lojas.</p>
+                </div>
+                <div>
+                    <h4 class="text-gray-300 font-medium mb-1">💾 Backup</h4>
+                    <p>Faça backups regulares. A restauração substitui todos os dados atuais — um backup automático é feito antes de cada restauração.</p>
+                </div>
+                <div>
+                    <h4 class="text-gray-300 font-medium mb-1">📊 Banco de Dados</h4>
+                    <p>O tamanho do banco cresce com o tempo. Monitore e faça limpeza do histórico antigo se necessário.</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+</div>
+{% endblock %}

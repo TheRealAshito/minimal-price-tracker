@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Minimal Price Tracker{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            600: '#475569',
+                            500: '#64748b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="dark bg-dark-900 text-gray-200 min-h-screen flex flex-col">
+
+    <!-- Top Navigation -->
+    <nav class="bg-dark-800 border-b border-dark-700 sticky top-0 z-50">
+        <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <a href="/" class="flex items-center space-x-2 text-xl font-bold text-white">
+                        <span class="text-emerald-400">💰</span>
+                        <span>Minimal Price Tracker</span>
+                    </a>
+                    <div class="flex space-x-1">
+                        <a href="/" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                            {% block nav_dashboard %}text-gray-400 hover:text-white hover:bg-dark-700{% endblock %}">
+                            📊 Dashboard
+                        </a>
+                        <a href="/products" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                            {% block nav_products %}text-gray-400 hover:text-white hover:bg-dark-700{% endblock %}">
+                            📦 Produtos
+                        </a>
+                        <a href="/alerts" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                            {% block nav_alerts %}text-gray-400 hover:text-white hover:bg-dark-700{% endblock %}">
+                            🔔 Alertas
+                        </a>
+                        <a href="/settings" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                            {% block nav_settings %}text-gray-400 hover:text-white hover:bg-dark-700{% endblock %}">
+                            ⚙️ Configurações
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area with Side Panels -->
+    <main class="flex-1 max-w-full mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- Left Sidebar -->
+            <aside class="col-span-12 lg:col-span-3 space-y-4">
+                {% block left_sidebar %}
+                <div class="sidebar">
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Resumo Rápido</h3>
+                    <div id="quick-stats" class="space-y-2">
+                        <p class="text-sm text-gray-500">Carregando...</p>
+                    </div>
+                </div>
+                {% endblock %}
+            </aside>
+
+            <!-- Main Content -->
+            <section class="col-span-12 lg:col-span-6 space-y-6">
+                {% block content %}{% endblock %}
+            </section>
+
+            <!-- Right Sidebar -->
+            <aside class="col-span-12 lg:col-span-3 space-y-4">
+                {% block right_sidebar %}
+                <div class="sidebar">
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Atividade Recente</h3>
+                    <div id="recent-activity" class="space-y-2">
+                        <p class="text-sm text-gray-500">Carregando...</p>
+                    </div>
+                </div>
+                {% endblock %}
+            </aside>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark-800 border-t border-dark-700 py-4">
+        <div class="max-w-full mx-auto px-4 text-center text-sm text-gray-500">
+            Minimal Price Tracker v1.0 · Feito com ❤️ para o Brasil
+        </div>
+    </footer>
+
+    <script src="/static/js/charts.js"></script>
+    <script>
+        // Fetch quick stats for sidebar
+        async function loadQuickStats() {
+            try {
+                const resp = await fetch('/api/dashboard/summary');
+                const data = await resp.json();
+                document.getElementById('quick-stats').innerHTML = `
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">Ativos</span>
+                        <span class="text-emerald-400 font-medium">${data.active_products}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">Com falha</span>
+                        <span class="${data.failing_products > 0 ? 'text-red-400' : 'text-emerald-400'} font-medium">${data.failing_products}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">Últimas 24h</span>
+                        <span class="text-blue-400 font-medium">${data.scraped_last_24h}</span>
+                    </div>
+                `;
+            } catch (e) {
+                document.getElementById('quick-stats').innerHTML = '<p class="text-sm text-gray-500">Erro ao carregar</p>';
+            }
+        }
+
+        // Load on page load
+        loadQuickStats();
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
