@@ -1,8 +1,10 @@
 import re
 import random
 from abc import ABC, abstractmethod
-from typing import Optional
-from playwright.async_api import async_playwright, Browser, Page
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from playwright.async_api import Browser, Page
 
 
 USER_AGENTS = [
@@ -21,8 +23,9 @@ class BaseScraper(ABC):
         self._browser: Optional[Browser] = None
         self._playwright = None
 
-    async def _get_browser(self) -> Browser:
+    async def _get_browser(self):
         if self._browser is None or not self._browser.is_connected():
+            from playwright.async_api import async_playwright
             self._playwright = await async_playwright().start()
             self._browser = await self._playwright.chromium.launch(
                 headless=True,
@@ -34,7 +37,7 @@ class BaseScraper(ABC):
             )
         return self._browser
 
-    async def _get_page(self) -> Page:
+    async def _get_page(self):
         browser = await self._get_browser()
         context = await browser.new_context(
             user_agent=random.choice(USER_AGENTS),
