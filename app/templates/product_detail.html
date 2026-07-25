@@ -3,303 +3,469 @@
 {% block title %}{{ product.name }} - Price Tracker{% endblock %}
 {% block nav_products %}text-white bg-dark-700{% endblock %}
 
-{% block content %}
-<div class="flex flex-col lg:flex-row gap-6">
-
-    <!-- Left Sidebar: Stats Summary -->
-    <aside class="w-full lg:w-64 shrink-0 space-y-4">
-        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
-            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Resumo</h3>
-            <div class="space-y-3">
-                <div>
-                    <div class="text-xs text-gray-500">Preço Atual</div>
-                    <div class="text-2xl font-bold text-white font-mono">
-                        {% if stats.current_price is not none %}R$ {{ "%.2f"|format(stats.current_price) }}{% else %}—{% endif %}
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <div class="text-xs text-gray-500">Mínimo</div>
-                        <div class="text-sm font-mono text-emerald-400">
-                            {% if stats.min_price is not none %}R$ {{ "%.2f"|format(stats.min_price) }}{% else %}—{% endif %}
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-gray-500">Máximo</div>
-                        <div class="text-sm font-mono text-red-400">
-                            {% if stats.max_price is not none %}R$ {{ "%.2f"|format(stats.max_price) }}{% else %}—{% endif %}
-                        </div>
-                    </div>
-                </div>
-                <div class="border-t border-dark-700 pt-3 space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-xs text-gray-500">Média</span>
-                        <span class="text-sm font-mono text-gray-300">
-                            {% if stats.mean_price is not none %}R$ {{ "%.2f"|format(stats.mean_price) }}{% else %}—{% endif %}
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-xs text-gray-500">Mediana</span>
-                        <span class="text-sm font-mono text-gray-300">
-                            {% if stats.median_price is not none %}R$ {{ "%.2f"|format(stats.median_price) }}{% else %}—{% endif %}
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-xs text-gray-500">Desvio Padrão</span>
-                        <span class="text-sm font-mono text-gray-300">
-                            {% if stats.std_dev is not none %}R$ {{ "%.2f"|format(stats.std_dev) }}{% else %}—{% endif %}
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-xs text-gray-500">Registros</span>
-                        <span class="text-sm font-mono text-gray-300">{{ stats.total_records }}</span>
-                    </div>
-                </div>
-
-                <!-- Current vs Mean comparison -->
-                {% if stats.current_price is not none and stats.mean_price is not none %}
-                <div class="border-t border-dark-700 pt-3">
-                    <div class="text-xs text-gray-500 mb-1">Preço atual vs Média</div>
-                    {% set diff_pct = ((stats.current_price - stats.mean_price) / stats.mean_price * 100) %}
-                    {% if stats.current_price < stats.mean_price %}
-                        <div class="flex items-center gap-1 text-emerald-400 text-sm font-medium">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
-                            </svg>
-                            {{ "%.1f"|format(diff_pct|abs) }}% abaixo da média
-                        </div>
-                    {% elif stats.current_price > stats.mean_price %}
-                        <div class="flex items-center gap-1 text-red-400 text-sm font-medium">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
-                            </svg>
-                            {{ "%.1f"|format(diff_pct) }}% acima da média
-                        </div>
-                    {% else %}
-                        <div class="flex items-center gap-1 text-gray-400 text-sm font-medium">
-                            Igual à média
-                        </div>
-                    {% endif %}
-                </div>
-                {% endif %}
-
-                {% if stats.first_tracked %}
-                <div class="border-t border-dark-700 pt-3">
-                    <div class="flex justify-between">
-                        <span class="text-xs text-gray-500">Rastreando desde</span>
-                        <span class="text-xs text-gray-400">{{ stats.first_tracked[:10] }}</span>
-                    </div>
-                    <div class="flex justify-between mt-1">
-                        <span class="text-xs text-gray-500">Última atualização</span>
-                        <span class="text-xs text-gray-400">{{ stats.last_updated[:16] if stats.last_updated else '—' }}</span>
-                    </div>
-                </div>
-                {% endif %}
+{# ── Left Sidebar: Stats ─────────────────────────────────────── #}
+{% block left_sidebar %}
+<div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Resumo</h3>
+    <div class="space-y-3">
+        <div>
+            <div class="text-xs text-gray-500">Preço Atual</div>
+            <div class="text-2xl font-bold text-white font-mono">
+                {% if stats.current_price is not none %}R$ {{ "%.2f"|format(stats.current_price) }}{% else %}—{% endif %}
             </div>
         </div>
-    </aside>
-
-    <!-- Main Content -->
-    <div class="flex-1 min-w-0 space-y-6">
-
-        <!-- Product Header -->
-        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 class="text-xl font-bold text-white">{{ product.name }}</h1>
-                    <div class="flex items-center gap-3 mt-2">
-                        {% if product.store == 'kabum' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-900/50 text-orange-300 border border-orange-700">KaBuM!</span>
-                        {% elif product.store == 'shopee' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">Shopee</span>
-                        {% elif product.store == 'amazon' %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-900/50 text-yellow-300 border border-yellow-700">Amazon</span>
-                        {% else %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ product.store }}</span>
-                        {% endif %}
-                        <a href="{{ product.url }}" target="_blank" rel="noopener"
-                           class="text-sm text-blue-400 hover:text-blue-300 truncate max-w-md flex items-center gap-1">
-                            {{ product.url }}
-                            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                            </svg>
-                        </a>
-                        {% if not product.active %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-600">Desativado</span>
-                        {% elif product.consecutive_failures > 0 %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">
-                                {{ product.consecutive_failures }} falha{{ 's' if product.consecutive_failures > 1 else '' }}
-                            </span>
-                        {% else %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">Ativo</span>
-                        {% endif %}
-                    </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <div class="text-xs text-gray-500">Mínimo</div>
+                <div class="text-sm font-mono text-emerald-400">
+                    {% if stats.min_price is not none %}R$ {{ "%.2f"|format(stats.min_price) }}{% else %}—{% endif %}
                 </div>
-                <div class="flex items-center gap-2">
-                    <form method="post" action="/products/{{ product.id }}/scrape" class="inline">
-                        <button type="submit" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                            </svg>
-                            Scrape Agora
-                        </button>
-                    </form>
-                    <a href="/products/{{ product.id }}/export"
-                       class="inline-flex items-center gap-1.5 bg-dark-700 hover:bg-dark-600 text-gray-300 px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
-                        Exportar CSV
-                    </a>
-                    <form method="post" action="/products/{{ product.id }}/toggle" class="inline">
-                        <button type="submit" class="inline-flex items-center gap-1.5 {% if product.active %}bg-amber-600 hover:bg-amber-700{% else %}bg-emerald-600 hover:bg-emerald-700{% endif %} text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                            {% if product.active %}Pausar{% else %}Ativar{% endif %}
-                        </button>
-                    </form>
-                    <form method="post" action="/products/{{ product.id }}/delete" class="inline"
-                          onsubmit="return confirm('Excluir este produto e todo o histórico?')">
-                        <button type="submit" class="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                            Excluir
-                        </button>
-                    </form>
+            </div>
+            <div>
+                <div class="text-xs text-gray-500">Máximo</div>
+                <div class="text-sm font-mono text-red-400">
+                    {% if stats.max_price is not none %}R$ {{ "%.2f"|format(stats.max_price) }}{% else %}—{% endif %}
                 </div>
             </div>
         </div>
-
-        <!-- Price Chart -->
-        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
-            <h2 class="text-lg font-semibold text-white mb-4">Histórico de Preços</h2>
-            <div class="relative" style="height: 320px;">
-                <canvas id="priceChart"></canvas>
+        <div class="border-t border-dark-700 pt-3 space-y-2">
+            <div class="flex justify-between">
+                <span class="text-xs text-gray-500">Média</span>
+                <span class="text-sm font-mono text-gray-300">
+                    {% if stats.mean_price is not none %}R$ {{ "%.2f"|format(stats.mean_price) }}{% else %}—{% endif %}
+                </span>
             </div>
-            <div id="noChartData" class="hidden text-center py-10 text-gray-500">
-                Sem dados de preço suficientes para exibir o gráfico.
+            <div class="flex justify-between">
+                <span class="text-xs text-gray-500">Mediana</span>
+                <span class="text-sm font-mono text-gray-300">
+                    {% if stats.median_price is not none %}R$ {{ "%.2f"|format(stats.median_price) }}{% else %}—{% endif %}
+                </span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-xs text-gray-500">Desvio Padrão</span>
+                <span class="text-sm font-mono text-gray-300">
+                    {% if stats.std_dev is not none %}R$ {{ "%.2f"|format(stats.std_dev) }}{% else %}—{% endif %}
+                </span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-xs text-gray-500">Registros</span>
+                <span class="text-sm font-mono text-gray-300">{{ stats.total_records }}</span>
             </div>
         </div>
 
-        <!-- Price History Table -->
-        <div class="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden">
-            <div class="px-5 py-4 border-b border-dark-700">
-                <h2 class="text-lg font-semibold text-white">Últimos Scrapes</h2>
-            </div>
-            {% if history %}
-            <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                <table class="w-full text-sm">
-                    <thead class="sticky top-0 bg-dark-800">
-                        <tr class="text-left text-gray-400 text-xs uppercase tracking-wider border-b border-dark-700">
-                            <th class="px-5 py-3">Data/Hora</th>
-                            <th class="px-5 py-3 text-right">Preço</th>
-                            <th class="px-5 py-3 text-center">Status</th>
-                            <th class="px-5 py-3">Erro</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-dark-700">
-                        {% for h in history %}
-                        <tr class="hover:bg-dark-700/50">
-                            <td class="px-5 py-3 text-gray-300 font-mono text-xs">{{ h.scraped_at[:16] }}</td>
-                            <td class="px-5 py-3 text-right font-mono text-white">
-                                {% if h.price is not none %}R$ {{ "%.2f"|format(h.price) }}{% else %}—{% endif %}
-                            </td>
-                            <td class="px-5 py-3 text-center">
-                                {% if h.status == 'success' %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">OK</span>
-                                {% else %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">Erro</span>
-                                {% endif %}
-                            </td>
-                            <td class="px-5 py-3 text-xs text-gray-500 max-w-xs truncate">{{ h.error_message or '' }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        {# Current vs Mean comparison #}
+        {% if stats.current_price is not none and stats.mean_price is not none %}
+        <div class="border-t border-dark-700 pt-3">
+            <div class="text-xs text-gray-500 mb-1">Preço atual vs Média</div>
+            {% set diff_pct = ((stats.current_price - stats.mean_price) / stats.mean_price * 100) %}
+            {% if stats.current_price < stats.mean_price %}
+                <div class="flex items-center gap-1 text-emerald-400 text-sm font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+                    </svg>
+                    {{ "%.1f"|format(diff_pct|abs) }}% abaixo da média
+                </div>
+            {% elif stats.current_price > stats.mean_price %}
+                <div class="flex items-center gap-1 text-red-400 text-sm font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
+                    </svg>
+                    {{ "%.1f"|format(diff_pct) }}% acima da média
+                </div>
             {% else %}
-            <div class="px-5 py-12 text-center text-gray-500">
-                Nenhum registro de preço ainda. Clique em "Scrape Agora" para começar.
-            </div>
+                <div class="flex items-center gap-1 text-gray-400 text-sm font-medium">
+                    Igual à média
+                </div>
             {% endif %}
         </div>
-    </div>
+        {% endif %}
 
-    <!-- Right Sidebar: Alert Configuration -->
-    <aside class="w-full lg:w-72 shrink-0">
-        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5 sticky top-6">
-            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Configuração de Alertas</h3>
-            <form method="post" action="/products/{{ product.id }}/update" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-1">Nome</label>
-                    <input type="text" name="name" value="{{ product.name }}"
-                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-1">
-                        Alerta: Preço Absoluto (R$)
-                    </label>
-                    <input type="number" step="0.01" name="alert_price_abs"
-                           value="{{ product.alert_price_abs if product.alert_price_abs is not none else '' }}"
-                           placeholder="Ex: 2500.00"
-                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
-                    <p class="text-xs text-gray-500 mt-1">Alertar quando o preço cair para este valor ou menos.</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-1">
-                        Alerta: Queda Percentual (%)
-                    </label>
-                    <input type="number" step="0.1" name="alert_price_pct"
-                           value="{{ product.alert_price_pct if product.alert_price_pct is not none else '' }}"
-                           placeholder="Ex: 10"
-                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
-                    <p class="text-xs text-gray-500 mt-1">Alertar quando o preço cair X% em relação ao último registro.</p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" id="alert_below_mean" name="alert_below_mean" value="true"
-                           {% if product.alert_below_mean %}checked{% endif %}
-                           class="w-4 h-4 rounded border-dark-600 bg-dark-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0">
-                    <label for="alert_below_mean" class="text-sm text-gray-300">
-                        Alertar quando abaixo da média
-                    </label>
-                </div>
-                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm">
-                    Salvar Configurações
-                </button>
-            </form>
+        {% if stats.first_tracked %}
+        <div class="border-t border-dark-700 pt-3">
+            <div class="flex justify-between">
+                <span class="text-xs text-gray-500">Rastreando desde</span>
+                <span class="text-xs text-gray-400">{{ stats.first_tracked[:10] }}</span>
+            </div>
+            <div class="flex justify-between mt-1">
+                <span class="text-xs text-gray-500">Última atualização</span>
+                <span class="text-xs text-gray-400">{{ stats.last_updated[:16] if stats.last_updated else '—' }}</span>
+            </div>
         </div>
-    </aside>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
 
+{# ── Center Content ──────────────────────────────────────────── #}
+{% block content %}
+
+<!-- Product Header -->
+<div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-bold text-white">{{ product.name }}</h1>
+            <div class="flex items-center gap-3 mt-2 flex-wrap">
+                {# Status badge #}
+                {% if not product.active %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-600">Desativado</span>
+                {% else %}
+                    {% set ns = namespace(has_failing=false) %}
+                    {% for link in links %}
+                        {% if link.consecutive_failures > 0 %}
+                            {% set ns.has_failing = true %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if ns.has_failing %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">Com falhas</span>
+                    {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">Ativo</span>
+                    {% endif %}
+                {% endif %}
+
+                {# Store badges #}
+                {% set stores_seen = [] %}
+                {% for link in links %}
+                    {% if link.store not in stores_seen %}
+                        {% if link.store == 'kabum' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-900/50 text-yellow-300 border border-yellow-700">KaBuM!</span>
+                        {% elif link.store == 'shopee' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-900/50 text-orange-300 border border-orange-700">Shopee</span>
+                        {% elif link.store == 'amazon' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-700">Amazon</span>
+                        {% elif link.store == 'aliexpress' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">AliExpress</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ link.store }}</span>
+                        {% endif %}
+                        {% set _ = stores_seen.append(link.store) %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <form method="post" action="/products/{{ product.id }}/scrape" class="inline">
+                <button type="submit" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Scrape Tudo
+                </button>
+            </form>
+            <a href="/products/{{ product.id }}/export"
+               class="inline-flex items-center gap-1.5 bg-dark-700 hover:bg-dark-600 text-gray-300 px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                CSV
+            </a>
+            <form method="post" action="/products/{{ product.id }}/toggle" class="inline">
+                <button type="submit" class="inline-flex items-center gap-1.5 {% if product.active %}bg-amber-600 hover:bg-amber-700{% else %}bg-emerald-600 hover:bg-emerald-700{% endif %} text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    {% if product.active %}Pausar{% else %}Ativar{% endif %}
+                </button>
+            </form>
+            <form method="post" action="/products/{{ product.id }}/delete" class="inline"
+                  onsubmit="return confirm('Excluir este produto, todos os links e todo o histórico?')">
+                <button type="submit" class="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    Excluir
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Links Table -->
+<div class="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden">
+    <div class="px-5 py-4 border-b border-dark-700">
+        <h2 class="text-lg font-semibold text-white">Links ({{ links|length }})</h2>
+    </div>
+    {% if links %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-400 text-xs uppercase tracking-wider border-b border-dark-700">
+                    <th class="px-5 py-3">Loja</th>
+                    <th class="px-5 py-3">URL</th>
+                    <th class="px-5 py-3 text-right">Preço Atual</th>
+                    <th class="px-5 py-3 text-center">Status</th>
+                    <th class="px-5 py-3 text-right">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-dark-700">
+                {% for link in links %}
+                <tr class="hover:bg-dark-700/50 transition-colors">
+                    <td class="px-5 py-3">
+                        {% if link.store == 'kabum' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-900/50 text-yellow-300 border border-yellow-700">KaBuM!</span>
+                        {% elif link.store == 'shopee' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-900/50 text-orange-300 border border-orange-700">Shopee</span>
+                        {% elif link.store == 'amazon' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-700">Amazon</span>
+                        {% elif link.store == 'aliexpress' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">AliExpress</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ link.store }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-5 py-3">
+                        <a href="{{ link.url }}" target="_blank" rel="noopener"
+                           class="text-blue-400 hover:text-blue-300 text-xs truncate max-w-sm inline-flex items-center gap-1">
+                            {{ link.url[:60] }}{% if link.url|length > 60 %}…{% endif %}
+                            <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                            </svg>
+                        </a>
+                    </td>
+                    <td class="px-5 py-3 text-right font-mono text-white">
+                        {% if link.current_price is not none %}R$ {{ "%.2f"|format(link.current_price) }}{% else %}<span class="text-gray-500">—</span>{% endif %}
+                    </td>
+                    <td class="px-5 py-3 text-center">
+                        {% if link.consecutive_failures > 0 %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">
+                                {{ link.consecutive_failures }} falha{{ 's' if link.consecutive_failures > 1 else '' }}
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">OK</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-5 py-3">
+                        <div class="flex items-center justify-end gap-2">
+                            <form method="post" action="/products/{{ product.id }}/links/{{ link.id }}/scrape" class="inline">
+                                <button type="submit" class="inline-flex items-center gap-1 bg-blue-900/50 hover:bg-blue-800 text-blue-300 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-blue-700" title="Scrapar agora">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                    </svg>
+                                    Scrape
+                                </button>
+                            </form>
+                            <form method="post" action="/products/{{ product.id }}/links/{{ link.id }}/delete" class="inline"
+                                  onsubmit="return confirm('Excluir este link?')">
+                                <button type="submit" class="inline-flex items-center gap-1 bg-red-900/50 hover:bg-red-800 text-red-300 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-red-700" title="Excluir link">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="px-5 py-12 text-center text-gray-500">
+        Nenhum link adicionado. Use o formulário abaixo para adicionar.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Link Form -->
+<div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+    <h2 class="text-lg font-semibold text-white mb-4">Adicionar Link</h2>
+    <form method="post" action="/products/{{ product.id }}/add-link" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+        <div class="sm:col-span-1">
+            <label class="block text-sm font-medium text-gray-300 mb-1">URL do Produto</label>
+            <input type="url" name="url" required
+                   class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                   placeholder="https://...">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Loja</label>
+            <select name="store" class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                <option value="auto">Auto-detectar</option>
+                <option value="kabum">KaBuM!</option>
+                <option value="shopee">Shopee</option>
+                <option value="amazon">Amazon</option>
+                <option value="aliexpress">AliExpress</option>
+            </select>
+        </div>
+        <div>
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-md transition-colors text-sm flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Adicionar Link
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Price Chart -->
+<div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+    <h2 class="text-lg font-semibold text-white mb-4">Histórico de Preços</h2>
+    <div class="relative" style="height: 320px;">
+        <canvas id="priceChart"></canvas>
+    </div>
+    <div id="noChartData" class="hidden text-center py-10 text-gray-500">
+        Sem dados de preço suficientes para exibir o gráfico.
+    </div>
+</div>
+
+<!-- Price History Table -->
+<div class="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden">
+    <div class="px-5 py-4 border-b border-dark-700">
+        <h2 class="text-lg font-semibold text-white">Últimos Scrapes</h2>
+    </div>
+    {% if history %}
+    <div class="overflow-x-auto max-h-96 overflow-y-auto">
+        <table class="w-full text-sm">
+            <thead class="sticky top-0 bg-dark-800">
+                <tr class="text-left text-gray-400 text-xs uppercase tracking-wider border-b border-dark-700">
+                    <th class="px-5 py-3">Data/Hora</th>
+                    <th class="px-5 py-3">Loja</th>
+                    <th class="px-5 py-3 text-right">Preço</th>
+                    <th class="px-5 py-3 text-center">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-dark-700">
+                {% for h in history %}
+                <tr class="hover:bg-dark-700/50">
+                    <td class="px-5 py-3 text-gray-300 font-mono text-xs">{{ h.scraped_at[:16] }}</td>
+                    <td class="px-5 py-3">
+                        {% if h.store == 'kabum' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-900/50 text-yellow-300 border border-yellow-700">KaBuM!</span>
+                        {% elif h.store == 'shopee' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-900/50 text-orange-300 border border-orange-700">Shopee</span>
+                        {% elif h.store == 'amazon' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-700">Amazon</span>
+                        {% elif h.store == 'aliexpress' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">AliExpress</span>
+                        {% elif h.store %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ h.store }}</span>
+                        {% else %}
+                            <span class="text-gray-500">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-5 py-3 text-right font-mono text-white">
+                        {% if h.price is not none %}R$ {{ "%.2f"|format(h.price) }}{% else %}—{% endif %}
+                    </td>
+                    <td class="px-5 py-3 text-center">
+                        {% if h.status == 'success' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">OK</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">Erro</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="px-5 py-12 text-center text-gray-500">
+        Nenhum registro de preço ainda. Clique em "Scrape Tudo" para começar.
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{# ── Right Sidebar: Alert Configuration ──────────────────────── #}
+{% block right_sidebar %}
+<div class="bg-dark-800 rounded-lg border border-dark-700 p-5 sticky top-6">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Configuração de Alertas</h3>
+    <form method="post" action="/products/{{ product.id }}/update" class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Nome</label>
+            <input type="text" name="name" value="{{ product.name }}"
+                   class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">
+                Alerta: Preço Absoluto (R$)
+            </label>
+            <input type="number" step="0.01" name="alert_price_abs"
+                   value="{{ product.alert_price_abs if product.alert_price_abs is not none else '' }}"
+                   placeholder="Ex: 2500.00"
+                   class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+            <p class="text-xs text-gray-500 mt-1">Alertar quando o preço cair para este valor ou menos.</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">
+                Alerta: Queda Percentual (%)
+            </label>
+            <input type="number" step="0.1" name="alert_price_pct"
+                   value="{{ product.alert_price_pct if product.alert_price_pct is not none else '' }}"
+                   placeholder="Ex: 10"
+                   class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+            <p class="text-xs text-gray-500 mt-1">Alertar quando o preço cair X% em relação ao último registro.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <input type="checkbox" id="alert_below_mean" name="alert_below_mean" value="true"
+                   {% if product.alert_below_mean %}checked{% endif %}
+                   class="w-4 h-4 rounded border-dark-600 bg-dark-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0">
+            <label for="alert_below_mean" class="text-sm text-gray-300">
+                Alertar quando abaixo da média
+            </label>
+        </div>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm">
+            Salvar Configurações
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{# ── Scripts ─────────────────────────────────────────────────── #}
 {% block scripts %}
 <script>
     const historyData = {{ history | tojson }};
     const successfulData = historyData.filter(h => h.status === 'success' && h.price !== null);
 
+    const storeColors = {
+        'kabum': '#eab308',       // yellow
+        'shopee': '#f97316',      // orange
+        'amazon': '#3b82f6',      // blue
+        'aliexpress': '#ef4444',  // red
+    };
+    const defaultColors = ['#10b981', '#8b5cf6', '#06b6d4', '#f59e0b', '#ec4899'];
+
     if (successfulData.length > 0) {
-        const reversed = successfulData.reverse();
-        const labels = reversed.map(h => {
-            const d = new Date(h.scraped_at);
+        // Group data by store
+        const byStore = {};
+        successfulData.forEach(h => {
+            const store = h.store || 'outro';
+            if (!byStore[store]) byStore[store] = [];
+            byStore[store].push(h);
+        });
+
+        // Build unified labels (all unique timestamps sorted)
+        const allTimes = [...new Set(successfulData.map(h => h.scraped_at))].sort();
+        const labels = allTimes.map(t => {
+            const d = new Date(t);
             return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
         });
-        const prices = reversed.map(h => h.price);
 
-        const stats = {{ stats | tojson }};
-        const datasets = [
-            {
-                label: 'Preço (R$)',
-                data: prices,
-                borderColor: '#10b981',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                fill: true,
+        const storeLabels = { 'kabum': 'KaBuM!', 'shopee': 'Shopee', 'amazon': 'Amazon', 'aliexpress': 'AliExpress', 'outro': 'Outro' };
+        let colorIdx = 0;
+        const datasets = [];
+
+        Object.keys(byStore).forEach(store => {
+            const storeData = byStore[store];
+            // Map each store record to the unified time axis
+            const priceMap = {};
+            storeData.forEach(h => { priceMap[h.scraped_at] = h.price; });
+            const data = allTimes.map(t => priceMap[t] !== undefined ? priceMap[t] : null);
+
+            const color = storeColors[store] || defaultColors[colorIdx++ % defaultColors.length];
+            datasets.push({
+                label: storeLabels[store] || store,
+                data: data,
+                borderColor: color,
+                backgroundColor: color + '1a',
+                fill: false,
                 tension: 0.3,
                 pointRadius: 2,
                 pointHoverRadius: 5,
-            }
-        ];
+                spanGaps: true,
+            });
+        });
 
         // Mean line
+        const stats = {{ stats | tojson }};
         if (stats.mean_price !== null) {
             datasets.push({
                 label: 'Média',
-                data: Array(prices.length).fill(stats.mean_price),
+                data: Array(labels.length).fill(stats.mean_price),
                 borderColor: '#64748b',
                 borderDash: [6, 4],
                 borderWidth: 1.5,

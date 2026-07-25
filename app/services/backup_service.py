@@ -30,7 +30,7 @@ async def export_product_csv(product_id: int) -> io.StringIO:
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT name, url, store FROM products WHERE id = ?", (product_id,)
+            "SELECT name FROM products WHERE id = ?", (product_id,)
         )
         product = await cursor.fetchone()
         if not product:
@@ -38,8 +38,11 @@ async def export_product_csv(product_id: int) -> io.StringIO:
 
         cursor2 = await db.execute(
             """
-            SELECT price, status, scraped_at FROM price_history
-            WHERE product_id = ? ORDER BY scraped_at ASC
+            SELECT pl.store, pl.url, ph.price, ph.status, ph.scraped_at
+            FROM price_history ph
+            JOIN product_links pl ON pl.id = ph.link_id
+            WHERE pl.product_id = ?
+            ORDER BY ph.scraped_at ASC
             """,
             (product_id,),
         )
@@ -50,7 +53,7 @@ async def export_product_csv(product_id: int) -> io.StringIO:
         writer.writerow(["product_name", "store", "url", "price_brl", "status", "scraped_at"])
         for row in rows:
             writer.writerow([
-                product["name"], product["store"], product["url"],
+                product["name"], row["store"], row["url"],
                 row["price"], row["status"], row["scraped_at"],
             ])
         output.seek(0)

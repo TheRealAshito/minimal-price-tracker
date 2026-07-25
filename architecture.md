@@ -61,30 +61,34 @@ A local-first price tracker that scrapes Brazilian e-commerce sites using Playwr
 ## Database Schema
 
 ```sql
-products
+products (logical grouping — one per tracked item)
   id              INTEGER PRIMARY KEY
   name            TEXT NOT NULL
-  url             TEXT NOT NULL UNIQUE
-  store           TEXT CHECK(store IN ('kabum','shopee','amazon'))
   alert_price_abs REAL          -- absolute price threshold
   alert_price_pct REAL          -- percentage drop threshold
   alert_below_mean INTEGER      -- boolean: alert when below mean
-  consecutive_failures INTEGER  -- failure counter
   active          INTEGER       -- boolean: tracking enabled
+  created_at      TIMESTAMP
+
+product_links (individual URLs per product)
+  id              INTEGER PRIMARY KEY
+  product_id      INTEGER → products.id
+  url             TEXT NOT NULL UNIQUE
+  store           TEXT CHECK(store IN ('kabum','shopee','amazon','aliexpress'))
+  consecutive_failures INTEGER  -- failure counter per link
   created_at      TIMESTAMP
 
 price_history
   id          INTEGER PRIMARY KEY
-  product_id  INTEGER → products.id
+  link_id     INTEGER → product_links.id
   price       REAL              -- null on failure
   status      TEXT CHECK(status IN ('success','failed','blocked'))
   error_message TEXT
   scraped_at  TIMESTAMP
-
-settings
-  key   TEXT PRIMARY KEY
-  value TEXT
 ```
+
+One product can have multiple links (e.g., same GPU on KaBum + Amazon + AliExpress).
+Stats are computed across all links for a product.
 
 ## Scraper Strategy
 

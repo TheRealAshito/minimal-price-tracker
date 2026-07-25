@@ -12,8 +12,8 @@ logger = logging.getLogger("price_tracker.scheduler")
 scheduler = AsyncIOScheduler()
 
 
-async def scrape_product(product_id: int, url: str, store: str, name: str):
-    """Scrape a single product and record the result."""
+async def scrape_link(link_id: int, url: str, store: str, product_id: int, product_name: str):
+    """Scrape a single product link and record the result."""
     scraper = get_scraper(store)
     try:
         # Random delay to avoid pattern detection
@@ -25,33 +25,33 @@ async def scrape_product(product_id: int, url: str, store: str, name: str):
         try:
             if price is not None:
                 await db.execute(
-                    "INSERT INTO price_history (product_id, price, status) VALUES (?, ?, 'success')",
-                    (product_id, price),
+                    "INSERT INTO price_history (link_id, price, status) VALUES (?, ?, 'success')",
+                    (link_id, price),
                 )
                 await db.commit()
-                await reset_failures(product_id)
-                await evaluate_alerts(product_id, price)
-                logger.info(f"Scraped {name}: R$ {price:,.2f}")
+                await reset_failures(link_id)
+                await evaluate_alerts(product_id, link_id, price)
+                logger.info(f"Scraped {product_name} ({store}): R$ {price:,.2f}")
             else:
                 await db.execute(
-                    "INSERT INTO price_history (product_id, status, error_message) VALUES (?, 'failed', ?)",
-                    (product_id, error),
+                    "INSERT INTO price_history (link_id, status, error_message) VALUES (?, 'failed', ?)",
+                    (link_id, error),
                 )
                 await db.commit()
-                await handle_scrape_failure(product_id)
-                logger.warning(f"Failed to scrape {name}: {error}")
+                await handle_scrape_failure(link_id)
+                logger.warning(f"Failed to scrape {product_name} ({store}): {error}")
         finally:
             await db.close()
     except Exception as e:
-        logger.error(f"Error scraping {name}: {e}")
+        logger.error(f"Error scraping {product_name} ({store}): {e}")
         db = await get_db()
         try:
             await db.execute(
-                "INSERT INTO price_history (product_id, status, error_message) VALUES (?, 'failed', ?)",
-                (product_id, str(e)[:500]),
+                "INSERT INTO price_history (link_id, status, error_message) VALUES (?, 'failed', ?)",
+                (link_id, str(e)[:500]),
             )
             await db.commit()
-            await handle_scrape_failure(product_id)
+            await handle_scrape_failure(link_id)
         finally:
             await db.close()
     finally:
@@ -59,40 +59,64 @@ async def scrape_product(product_id: int, url: str, store: str, name: str):
 
 
 async def run_all_scrapes():
-    """Scrape all active products sequentially with delays."""
+    """Scrape all active product links sequentially with delays."""
     logger.info("Starting scheduled scrape run...")
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT id, name, url, store FROM products WHERE active = 1"
-        )
-        products = await cursor.fetchall()
+        cursor = await db.execute("""
+            SELECT pl.id, pl.url, pl.store, p.id as product_id, p.name
+            FROM product_links pl
+            JOIN products p ON p.id = pl.product_id
+            WHERE p.active = 1
+        """)
+        links = await cursor.fetchall()
     finally:
         await db.close()
 
-    if not products:
-        logger.info("No active products to scrape.")
+    if not links:
+        logger.info("No active product links to scrape.")
         return
 
-    for p in products:
-        await scrape_product(p["id"], p["url"], p["store"], p["name"])
+    for link in links:
+        await scrape_link(link["id"], link["url"], link["store"], link["product_id"], link["name"])
 
-    logger.info(f"Scrape run complete. Processed {len(products)} products.")
+    logger.info(f"Scrape run complete. Processed {len(links)} links.")
 
     # Prune old data after each run
     await prune_old_data()
 
 
 async def run_single_product(product_id: int):
-    """Scrape a single product immediately."""
+    """Scrape all links for a single product immediately."""
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT id, name, url, store FROM products WHERE id = ?", (product_id,)
-        )
-        product = await cursor.fetchone()
-        if product:
-            await scrape_product(product["id"], product["url"], product["store"], product["name"])
+        cursor = await db.execute("""
+            SELECT pl.id, pl.url, pl.store, p.name
+            FROM product_links pl
+            JOIN products p ON p.id = pl.product_id
+            WHERE pl.product_id = ?
+        """, (product_id,))
+        links = await cursor.fetchall()
+
+        for link in links:
+            await scrape_link(link["id"], link["url"], link["store"], product_id, link["name"])
+    finally:
+        await db.close()
+
+
+async def run_single_link(link_id: int):
+    """Scrape a single link immediately."""
+    db = await get_db()
+    try:
+        cursor = await db.execute("""
+            SELECT pl.id, pl.url, pl.store, pl.product_id, p.name
+            FROM product_links pl
+            JOIN products p ON p.id = pl.product_id
+            WHERE pl.id = ?
+        """, (link_id,))
+        link = await cursor.fetchone()
+        if link:
+            await scrape_link(link["id"], link["url"], link["store"], link["product_id"], link["name"])
     finally:
         await db.close()
 

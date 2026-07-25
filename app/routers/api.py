@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from app.database import get_db
-from app.services.price_service import get_product_stats, get_price_history, get_comparison_data
+from app.services.price_service import get_product_stats, get_price_history, get_comparison_data, get_link_stats
 
 router = APIRouter(prefix="/api")
 
@@ -18,6 +18,12 @@ async def api_product_stats(product_id: int):
     return JSONResponse(stats.model_dump())
 
 
+@router.get("/links/{link_id}/stats")
+async def api_link_stats(link_id: int):
+    stats = await get_link_stats(link_id)
+    return JSONResponse(stats.model_dump())
+
+
 @router.get("/comparison")
 async def api_comparison():
     data = await get_comparison_data()
@@ -31,11 +37,11 @@ async def api_dashboard_summary():
         cursor = await db.execute("SELECT COUNT(*) as c FROM products WHERE active = 1")
         active = (await cursor.fetchone())["c"]
 
-        cursor2 = await db.execute("SELECT COUNT(*) as c FROM products WHERE consecutive_failures > 0")
+        cursor2 = await db.execute("SELECT COUNT(*) as c FROM product_links WHERE consecutive_failures > 0")
         failing = (await cursor2.fetchone())["c"]
 
         cursor3 = await db.execute("""
-            SELECT COUNT(DISTINCT product_id) as c FROM price_history
+            SELECT COUNT(DISTINCT link_id) as c FROM price_history
             WHERE status = 'success' AND scraped_at > datetime('now', '-24 hours')
         """)
         scraped_today = (await cursor3.fetchone())["c"]
@@ -45,6 +51,6 @@ async def api_dashboard_summary():
 
     return JSONResponse({
         "active_products": active,
-        "failing_products": failing,
+        "failing_links": failing,
         "scraped_last_24h": scraped_today,
     })

@@ -13,10 +13,11 @@ async def alerts_page(request: Request):
     try:
         # Get recent price alerts (drops below thresholds)
         cursor = await db.execute("""
-            SELECT p.name, p.store, p.url, p.alert_price_abs, p.alert_price_pct,
+            SELECT p.name, pl.store, pl.url, p.alert_price_abs, p.alert_price_pct,
                    p.alert_below_mean, ph.price, ph.scraped_at
             FROM price_history ph
-            JOIN products p ON p.id = ph.product_id
+            JOIN product_links pl ON pl.id = ph.link_id
+            JOIN products p ON p.id = pl.product_id
             WHERE ph.status = 'success'
             AND (
                 (p.alert_price_abs IS NOT NULL AND ph.price <= p.alert_price_abs)
@@ -27,11 +28,13 @@ async def alerts_page(request: Request):
         """)
         triggered = [dict(row) for row in await cursor.fetchall()]
 
-        # Get products with failures
+        # Get links with failures
         cursor2 = await db.execute("""
-            SELECT name, store, url, consecutive_failures, active
-            FROM products WHERE consecutive_failures > 0
-            ORDER BY consecutive_failures DESC
+            SELECT p.name, pl.store, pl.url, pl.consecutive_failures, p.active
+            FROM product_links pl
+            JOIN products p ON p.id = pl.product_id
+            WHERE pl.consecutive_failures > 0
+            ORDER BY pl.consecutive_failures DESC
         """)
         failures = [dict(row) for row in await cursor2.fetchall()]
 

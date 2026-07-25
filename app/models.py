@@ -1,15 +1,17 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
 
 
 class ProductCreate(BaseModel):
     name: str
-    url: str
-    store: str
     alert_price_abs: Optional[float] = None
     alert_price_pct: Optional[float] = None
     alert_below_mean: bool = False
+
+
+class ProductLinkCreate(BaseModel):
+    url: str
+    store: str = "auto"
 
 
 class ProductUpdate(BaseModel):
@@ -23,19 +25,25 @@ class ProductUpdate(BaseModel):
 class Product(BaseModel):
     id: int
     name: str
-    url: str
-    store: str
     alert_price_abs: Optional[float]
     alert_price_pct: Optional[float]
     alert_below_mean: bool
-    consecutive_failures: int
     active: bool
+    created_at: str
+
+
+class ProductLink(BaseModel):
+    id: int
+    product_id: int
+    url: str
+    store: str
+    consecutive_failures: int
     created_at: str
 
 
 class PriceRecord(BaseModel):
     id: int
-    product_id: int
+    link_id: int
     price: Optional[float]
     status: str
     error_message: Optional[str]
