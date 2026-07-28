@@ -146,8 +146,8 @@ class ShopeeScraper(BaseScraper):
                 if match:
                     raw = float(match.group(1))
                     return self._normalize_cents(raw)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Shopee API data extraction failed: {e}")
         return None
 
     @staticmethod

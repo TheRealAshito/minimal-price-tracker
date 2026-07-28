@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from app.database import get_db
-from app.scrapers.registry import detect_store
+from app.scrapers.registry import detect_store, validate_url
 from app.services.price_service import get_product_stats, get_price_history, get_link_stats, get_link_price_history
 from app.services.backup_service import export_product_csv
 from app.scheduler import run_single_product, run_single_link
@@ -16,15 +16,18 @@ async def list_products(request: Request, store: str = "", status: str = ""):
     db = await get_db()
     try:
         # Get all products with their links
-        cursor = await db.execute("""
+        query = """
             SELECT p.*, COUNT(pl.id) as link_count,
                    GROUP_CONCAT(DISTINCT pl.store) as stores
             FROM products p
             LEFT JOIN product_links pl ON pl.product_id = p.id
-        """ + (" WHERE pl.store = ? " if store else " ") + """
-            GROUP BY p.id
-            ORDER BY p.created_at DESC
-        """, [store] if store else [])
+        """
+        params: list = []
+        if store:
+            query += " WHERE pl.store = ? "
+            params.append(store)
+        query += " GROUP BY p.id ORDER BY p.created_at DESC"
+        cursor = await db.execute(query, params)
         products = [dict(row) for row in await cursor.fetchall()]
 
         # Get current best price for each product
@@ -175,6 +178,11 @@ async def add_link(
             store = detect_store(url)
         except ValueError:
             raise HTTPException(400, "Could not detect store from URL. Please select manually.")
+    # SSRF protection: validate URL against store domain allowlist
+    try:
+        url = validate_url(url, store)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
     db = await get_db()
     try:

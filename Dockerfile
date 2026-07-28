@@ -7,7 +7,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/data
+# Create non-root user for Chromium sandbox
+RUN useradd -m -s /bin/bash scraper && \
+    mkdir -p /app/data && \
+    chown -R scraper:scraper /app
+
+USER scraper
 
 EXPOSE 8035
 

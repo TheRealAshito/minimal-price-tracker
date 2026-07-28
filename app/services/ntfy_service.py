@@ -40,8 +40,9 @@ async def send_ntfy(title: str, message: str, tags: str = "price_tag"):
                     "Content-Type": "text/plain; charset=utf-8",
                 },
             )
-    except Exception:
-        pass  # Don't crash on NTFY failure
+    except Exception as e:
+        import logging
+        logging.getLogger("price_tracker.ntfy").warning(f"NTFY notification failed: {e}")
 
 
 async def send_price_alert(product_name: str, current_price: float,

@@ -55,7 +55,6 @@ class BaseScraper(ABC):
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-dev-shm-usage",
-                    "--no-sandbox",
                 ],
             )
         return self._browser
@@ -75,7 +74,7 @@ class BaseScraper(ABC):
             from playwright_stealth import stealth_async
             await stealth_async(page)
         except Exception:
-            pass
+            logger.debug("Stealth patch not available, continuing without it")
 
         return page
 
@@ -121,7 +120,7 @@ class BaseScraper(ABC):
                 except (json.JSONDecodeError, KeyError):
                     continue
         except Exception:
-            pass
+            logger.debug("JSON-LD extraction failed on page")
         return None
 
     def _extract_from_jsonld(self, data, depth=0) -> Optional[float]:
@@ -200,7 +199,7 @@ class BaseScraper(ABC):
                             confidence=0.60, raw_text=match.group(0)[:100]
                         )
         except Exception:
-            pass
+            logger.debug("Regex extraction failed on page content")
         return None
 
     async def cascade_extract(self, page, wait_ms: int = 3000) -> Optional[ExtractionResult]:
@@ -275,5 +274,8 @@ class BaseScraper(ABC):
         # Extract first number
         match = re.search(r"(\d+\.?\d*)", cleaned)
         if match:
-            return float(match.group(1))
+            price = float(match.group(1))
+            # Sanity bounds: reject prices outside plausible BRL range
+            if 0.50 <= price <= 1_000_000:
+                return price
         return None

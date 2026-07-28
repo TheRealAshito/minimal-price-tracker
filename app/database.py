@@ -66,6 +66,8 @@ async def _table_exists(db, table_name: str) -> bool:
 
 
 async def _column_exists(db, table_name: str, column_name: str) -> bool:
+    # PRAGMA doesn't support parameterized queries; validate identifier instead
+    assert table_name.replace("_", "").isalnum(), f"Invalid table name: {table_name}"
     cursor = await db.execute(f"PRAGMA table_info({table_name})")
     cols = await cursor.fetchall()
     return any(c[1] == column_name for c in cols)
@@ -73,7 +75,10 @@ async def _column_exists(db, table_name: str, column_name: str) -> bool:
 
 async def _get_check_constraint(db, table_name: str, column_name: str) -> str:
     """Get the current CHECK constraint for a column."""
-    cursor = await db.execute(f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table_name}'")
+    cursor = await db.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,)
+    )
     row = await cursor.fetchone()
     if row:
         sql = row[0]
