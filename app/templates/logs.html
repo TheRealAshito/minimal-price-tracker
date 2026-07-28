@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Logs - Minimal Price Tracker{% endblock %}
+{% block nav_logs %}text-white bg-dark-700{% endblock %}
+
+{% block left_sidebar %}
+<div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Filtros</h3>
+    <form method="get" action="/logs" class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Nível</label>
+            <select name="level" class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="">Todos</option>
+                <option value="DEBUG" {% if level_filter == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                <option value="INFO" {% if level_filter == 'INFO' %}selected{% endif %}>INFO</option>
+                <option value="WARNING" {% if level_filter == 'WARNING' %}selected{% endif %}>WARNING</option>
+                <option value="ERROR" {% if level_filter == 'ERROR' %}selected{% endif %}>ERROR</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Limite</label>
+            <select name="limit" class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+                <option value="200" {% if limit == 200 %}selected{% endif %}>200</option>
+                <option value="500" {% if limit == 500 %}selected{% endif %}>500</option>
+            </select>
+        </div>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm">
+            Aplicar
+        </button>
+    </form>
+</div>
+
+<div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Estatísticas</h3>
+    <div class="space-y-2 text-sm">
+        <div class="flex justify-between">
+            <span class="text-gray-400">Total</span>
+            <span class="text-white font-mono">{{ stats.total }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span class="text-gray-400">DEBUG</span>
+            <span class="text-gray-300 font-mono">{{ stats.debug }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span class="text-gray-400">INFO</span>
+            <span class="text-blue-400 font-mono">{{ stats.info }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span class="text-gray-400">WARNING</span>
+            <span class="text-yellow-400 font-mono">{{ stats.warning }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span class="text-gray-400">ERROR</span>
+            <span class="text-red-400 font-mono">{{ stats.error }}</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden">
+    <div class="px-5 py-4 border-b border-dark-700 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-white">📋 Logs do Scraper</h2>
+        <div class="flex items-center gap-2">
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="autoRefresh" checked class="sr-only peer">
+                <div class="w-9 h-5 bg-dark-600 peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                <span class="ml-2 text-sm text-gray-300">Auto-refresh</span>
+            </label>
+        </div>
+    </div>
+    <div class="overflow-x-auto max-h-[600px] overflow-y-auto" id="logContainer">
+        {% if entries %}
+        <table class="w-full text-sm font-mono">
+            <thead class="sticky top-0 bg-dark-800 z-10">
+                <tr class="text-left text-gray-400 text-xs uppercase tracking-wider border-b border-dark-700">
+                    <th class="px-4 py-2 w-36">Timestamp</th>
+                    <th class="px-4 py-2 w-20">Nível</th>
+                    <th class="px-4 py-2 w-40">Logger</th>
+                    <th class="px-4 py-2">Mensagem</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-dark-700/50">
+                {% for entry in entries|reverse %}
+                <tr class="hover:bg-dark-700/30">
+                    <td class="px-4 py-1.5 text-xs text-gray-500 whitespace-nowrap">{{ entry.timestamp }}</td>
+                    <td class="px-4 py-1.5">
+                        {% if entry.level == 'ERROR' %}
+                            <span class="text-red-400 font-bold">ERROR</span>
+                        {% elif entry.level == 'WARNING' %}
+                            <span class="text-yellow-400 font-bold">WARN</span>
+                        {% elif entry.level == 'INFO' %}
+                            <span class="text-blue-400">INFO</span>
+                        {% else %}
+                            <span class="text-gray-500">DEBUG</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-1.5 text-xs text-gray-500 truncate max-w-[160px]">{{ entry.logger }}</td>
+                    <td class="px-4 py-1.5 text-gray-300 break-all">{{ entry.message }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="px-5 py-12 text-center text-gray-500">
+            Nenhum log ainda. Os logs aparecem quando o scraper roda.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let autoRefreshInterval = null;
+
+    function startAutoRefresh() {
+        autoRefreshInterval = setInterval(async () => {
+            try {
+                const resp = await fetch('/logs/api?limit={{ limit }}&level={{ level_filter }}');
+                const data = await resp.json();
+                if (data.entries && data.entries.length > 0) {
+                    location.reload();
+                }
+            } catch (e) {}
+        }, 10000); // Refresh every 10s
+    }
+
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+    }
+
+    document.getElementById('autoRefresh').addEventListener('change', (e) => {
+        if (e.target.checked) {
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    });
+
+    // Start auto-refresh on load
+    startAutoRefresh();
+
+    // Auto-scroll to bottom
+    const container = document.getElementById('logContainer');
+    container.scrollTop = container.scrollHeight;
+</script>
+{% endblock %}

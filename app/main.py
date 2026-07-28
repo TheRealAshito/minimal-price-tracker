@@ -4,13 +4,19 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.database import init_db
 from app.routers import dashboard, products, alerts, settings, api
+from app.routers import logs as logs_router
 from app.scheduler import start_scheduler, stop_scheduler
 from app.config import settings as app_settings
+from app.log_buffer import setup_log_buffer
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
+
+# Setup in-memory log buffer for the web UI
+setup_log_buffer()
+
 logger = logging.getLogger("price_tracker")
 
 
@@ -38,3 +44,4 @@ app.include_router(products.router)
 app.include_router(alerts.router)
 app.include_router(settings.router)
 app.include_router(api.router)
+app.include_router(logs_router.router)
