@@ -116,12 +116,17 @@ async def product_detail(request: Request, product_id: int):
     stats = await get_product_stats(product_id)
     history = await get_price_history(product_id, limit=200)
 
+    # Get best deal comparison
+    from app.services.price_service import get_best_deal
+    best_deal = await get_best_deal(product_id)
+
     return templates.TemplateResponse("product_detail.html", {
         "request": request,
         "product": product,
         "links": links,
         "stats": stats.model_dump(),
         "history": history,
+        "best_deal": best_deal,
     })
 
 

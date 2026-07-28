@@ -147,8 +147,72 @@ async def get_link_price_history(link_id: int, limit: int = 100):
         await db.close()
 
 
+async def get_best_deal(product_id: int) -> Optional[dict]:
+    """
+    Find the best current deal for a product across all its links.
+    Returns dict with store, url, price, savings vs worst, savings vs mean.
+    """
+    db = await get_db()
+    try:
+        # Get latest price for each link
+        cursor = await db.execute("""
+            SELECT pl.id, pl.store, pl.url, ph.price, ph.scraped_at
+            FROM product_links pl
+            JOIN (
+                SELECT link_id, price, scraped_at,
+                       ROW_NUMBER() OVER (PARTITION BY link_id ORDER BY scraped_at DESC) as rn
+                FROM price_history
+                WHERE status = 'success' AND price IS NOT NULL
+            ) ph ON ph.link_id = pl.id AND ph.rn = 1
+            WHERE pl.product_id = ?
+            ORDER BY ph.price ASC
+        """, (product_id,))
+        rows = await cursor.fetchall()
+
+        if not rows or len(rows) < 1:
+            return None
+
+        deals = [dict(row) for row in rows]
+        best = deals[0]
+        worst = deals[-1] if len(deals) > 1 else best
+
+        # Calculate savings
+        savings_vs_worst = worst["price"] - best["price"] if len(deals) > 1 else 0
+        savings_pct = (savings_vs_worst / worst["price"] * 100) if worst["price"] > 0 else 0
+
+        # Get historical mean for context
+        cursor2 = await db.execute("""
+            SELECT AVG(ph.price) as mean_price
+            FROM price_history ph
+            JOIN product_links pl ON pl.id = ph.link_id
+            WHERE pl.product_id = ? AND ph.status = 'success' AND ph.price IS NOT NULL
+        """, (product_id,))
+        mean_row = await cursor2.fetchone()
+        mean_price = mean_row["mean_price"] if mean_row else None
+
+        savings_vs_mean = (mean_price - best["price"]) if mean_price else 0
+        savings_vs_mean_pct = (savings_vs_mean / mean_price * 100) if mean_price and mean_price > 0 else 0
+
+        return {
+            "best_store": best["store"],
+            "best_url": best["url"],
+            "best_price": best["price"],
+            "best_scraped_at": best["scraped_at"],
+            "worst_store": worst["store"],
+            "worst_price": worst["price"],
+            "savings_vs_worst": round(savings_vs_worst, 2),
+            "savings_vs_worst_pct": round(savings_pct, 1),
+            "mean_price": round(mean_price, 2) if mean_price else None,
+            "savings_vs_mean": round(savings_vs_mean, 2),
+            "savings_vs_mean_pct": round(savings_vs_mean_pct, 1),
+            "all_deals": deals,
+        }
+    finally:
+        await db.close()
+
+
 async def get_comparison_data():
-    """Get current price + stats for all active products."""
+    """Get current price + best deal for all active products."""
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -157,38 +221,17 @@ async def get_comparison_data():
         products = await cursor.fetchall()
         results = []
         for p in products:
-            # Get best (lowest) current price across all links
-            cursor2 = await db.execute(
-                """
-                SELECT ph.price, pl.store FROM price_history ph
-                JOIN product_links pl ON pl.id = ph.link_id
-                WHERE pl.product_id = ? AND ph.status = 'success' AND ph.price IS NOT NULL
-                ORDER BY ph.scraped_at DESC
-                """,
-                (p["id"],),
-            )
-            rows = await cursor2.fetchall()
-
-            # Group by store, get latest price per store
-            store_prices = {}
-            for r in rows:
-                if r["store"] not in store_prices:
-                    store_prices[r["store"]] = r["price"]
-
-            if store_prices:
-                best_price = min(store_prices.values())
-                best_store = min(store_prices, key=lambda k: store_prices[k])
-            else:
-                best_price = None
-                best_store = None
-
-            results.append({
-                "id": p["id"],
-                "name": p["name"],
-                "store": best_store or "N/A",
-                "current_price": best_price,
-                "store_prices": store_prices,
-            })
+            deal = await get_best_deal(p["id"])
+            if deal:
+                results.append({
+                    "id": p["id"],
+                    "name": p["name"],
+                    "store": deal["best_store"],
+                    "current_price": deal["best_price"],
+                    "store_prices": {d["store"]: d["price"] for d in deal["all_deals"]},
+                    "savings_vs_worst": deal["savings_vs_worst"],
+                    "savings_vs_worst_pct": deal["savings_vs_worst_pct"],
+                })
         return results
     finally:
         await db.close()

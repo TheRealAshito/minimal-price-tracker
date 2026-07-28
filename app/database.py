@@ -1,5 +1,8 @@
 import aiosqlite
+import logging
 from app.config import DB_PATH
+
+logger = logging.getLogger("price_tracker.database")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS products (
@@ -16,7 +19,7 @@ CREATE TABLE IF NOT EXISTS product_links (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id INTEGER NOT NULL,
     url TEXT NOT NULL,
-    store TEXT NOT NULL CHECK(store IN ('kabum', 'shopee', 'amazon', 'aliexpress')),
+    store TEXT NOT NULL CHECK(store IN ('kabum', 'shopee', 'amazon', 'aliexpress', 'terabyte')),
     consecutive_failures INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
@@ -44,30 +47,6 @@ CREATE INDEX IF NOT EXISTS idx_price_history_scraped ON price_history(scraped_at
 CREATE INDEX IF NOT EXISTS idx_product_links_product ON product_links(product_id);
 """
 
-# Migration SQL for old schema → new schema
-MIGRATION_V2 = """
--- Create new tables
-CREATE TABLE IF NOT EXISTS product_links_new (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_id INTEGER NOT NULL,
-    url TEXT NOT NULL,
-    store TEXT NOT NULL,
-    consecutive_failures INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS price_history_new (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    link_id INTEGER NOT NULL,
-    price REAL,
-    status TEXT NOT NULL,
-    error_message TEXT,
-    scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (link_id) REFERENCES product_links_new(id) ON DELETE CASCADE
-);
-"""
-
 
 async def get_db() -> aiosqlite.Connection:
     db = await aiosqlite.connect(str(DB_PATH))
@@ -92,19 +71,43 @@ async def _column_exists(db, table_name: str, column_name: str) -> bool:
     return any(c[1] == column_name for c in cols)
 
 
+async def _get_check_constraint(db, table_name: str, column_name: str) -> str:
+    """Get the current CHECK constraint for a column."""
+    cursor = await db.execute(f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table_name}'")
+    row = await cursor.fetchone()
+    if row:
+        sql = row[0]
+        # Extract CHECK constraint
+        import re
+        match = re.search(rf'{column_name}\s+\w+\s+CHECK\(([^)]+)\)', sql, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return ""
+
+
 async def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(str(DB_PATH)) as db:
-        # Check if we need migration (old schema has 'url' and 'store' in products table)
-        needs_migration = False
+        # Check if we need v1→v2 migration (old schema has 'url' in products table)
+        needs_v1_migration = False
         if await _table_exists(db, "products"):
             if await _column_exists(db, "products", "url"):
-                needs_migration = True
+                needs_v1_migration = True
 
-        if needs_migration:
+        if needs_v1_migration:
             await _migrate_v1_to_v2(db)
         else:
-            await db.executescript(SCHEMA)
+            # Check if we need v2→v3 migration (add terabyte to CHECK)
+            needs_v3_migration = False
+            if await _table_exists(db, "product_links"):
+                check = await _get_check_constraint(db, "product_links", "store")
+                if "terabyte" not in check:
+                    needs_v3_migration = True
+
+            if needs_v3_migration:
+                await _migrate_v2_to_v3(db)
+            else:
+                await db.executescript(SCHEMA)
 
         # Insert default settings if not present
         defaults = {
@@ -123,35 +126,23 @@ async def init_db():
 
 async def _migrate_v1_to_v2(db):
     """Migrate from old schema (products with url/store) to new schema (products + product_links)."""
-    import logging
-    logger = logging.getLogger("price_tracker.migration")
     logger.info("Migrating database from v1 to v2 schema...")
 
-    # Read old products
     cursor = await db.execute("SELECT * FROM products")
     old_products = await cursor.fetchall()
 
-    # Read old price_history
     cursor2 = await db.execute("SELECT * FROM price_history")
     old_history = await cursor2.fetchall()
 
-    # Build mapping: old_product_id → link_id
-    product_id_map = {}  # old_product_id → new product_id
-    link_id_map = {}     # old_product_id → new link_id
+    product_id_map = {}
+    link_id_map = {}
 
-    # Drop old tables
     await db.execute("DROP TABLE IF EXISTS price_history")
     await db.execute("DROP TABLE IF EXISTS products")
-
-    # Create new schema
     await db.executescript(SCHEMA)
 
-    # Migrate data
     for p in old_products:
-        # Check if product name already exists (group products by name)
-        cursor3 = await db.execute(
-            "SELECT id FROM products WHERE name = ?", (p["name"],)
-        )
+        cursor3 = await db.execute("SELECT id FROM products WHERE name = ?", (p["name"],))
         existing = await cursor3.fetchone()
 
         if existing:
@@ -162,14 +153,11 @@ async def _migrate_v1_to_v2(db):
                 (p["name"], p["alert_price_abs"], p["alert_price_pct"],
                  p["alert_below_mean"], p["active"], p["created_at"]),
             )
-            new_product_id = db.execute("SELECT last_insert_rowid()").lastrowid
-            # Get it properly
             cursor4 = await db.execute("SELECT MAX(id) as id FROM products")
             new_product_id = (await cursor4.fetchone())["id"]
 
         product_id_map[p["id"]] = new_product_id
 
-        # Create product_link
         await db.execute(
             "INSERT INTO product_links (product_id, url, store, consecutive_failures, created_at) VALUES (?, ?, ?, ?, ?)",
             (new_product_id, p["url"], p["store"], p["consecutive_failures"], p["created_at"]),
@@ -178,7 +166,6 @@ async def _migrate_v1_to_v2(db):
         new_link_id = (await cursor5.fetchone())["id"]
         link_id_map[p["id"]] = new_link_id
 
-    # Migrate price_history
     for h in old_history:
         old_pid = h["product_id"]
         if old_pid in link_id_map:
@@ -188,4 +175,61 @@ async def _migrate_v1_to_v2(db):
             )
 
     await db.commit()
-    logger.info(f"Migration complete. {len(old_products)} products → {len(product_id_map)} grouped products, {len(link_id_map)} links.")
+    logger.info(f"Migration v1→v2 complete. {len(old_products)} products → {len(product_id_map)} grouped products, {len(link_id_map)} links.")
+
+
+async def _migrate_v2_to_v3(db):
+    """Migrate from v2 (4 stores) to v3 (5 stores, adds terabyte)."""
+    logger.info("Migrating database from v2 to v3 schema (adding terabyte store)...")
+
+    # SQLite doesn't support ALTER TABLE to modify CHECK constraints.
+    # We need to recreate the table.
+    # First, read all existing data
+    cursor = await db.execute("SELECT * FROM products")
+    products = await cursor.fetchall()
+
+    cursor2 = await db.execute("SELECT * FROM product_links")
+    links = await cursor2.fetchall()
+
+    cursor3 = await db.execute("SELECT * FROM price_history")
+    history = await cursor3.fetchall()
+
+    cursor4 = await db.execute("SELECT key, value FROM settings")
+    settings = await cursor4.fetchall()
+
+    # Drop old tables
+    await db.execute("DROP TABLE IF EXISTS price_history")
+    await db.execute("DROP TABLE IF EXISTS product_links")
+    await db.execute("DROP TABLE IF EXISTS products")
+    await db.execute("DROP TABLE IF EXISTS settings")
+
+    # Create new schema with updated CHECK
+    await db.executescript(SCHEMA)
+
+    # Restore data
+    for p in products:
+        await db.execute(
+            "INSERT INTO products (id, name, alert_price_abs, alert_price_pct, alert_below_mean, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (p[0], p[1], p[2], p[3], p[4], p[5], p[6]),
+        )
+
+    for l in links:
+        await db.execute(
+            "INSERT INTO product_links (id, product_id, url, store, consecutive_failures, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (l[0], l[1], l[2], l[3], l[4], l[5]),
+        )
+
+    for h in history:
+        await db.execute(
+            "INSERT INTO price_history (id, link_id, price, status, error_message, scraped_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (h[0], h[1], h[2], h[3], h[4], h[5]),
+        )
+
+    for s in settings:
+        await db.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+            (s[0], s[1]),
+        )
+
+    await db.commit()
+    logger.info(f"Migration v2→v3 complete. {len(products)} products, {len(links)} links, {len(history)} price records preserved.")

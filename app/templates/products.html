@@ -17,6 +17,7 @@
                 <option value="shopee" {% if store_filter == 'shopee' %}selected{% endif %}>Shopee</option>
                 <option value="amazon" {% if store_filter == 'amazon' %}selected{% endif %}>Amazon</option>
                 <option value="aliexpress" {% if store_filter == 'aliexpress' %}selected{% endif %}>AliExpress</option>
+                <option value="terabyte" {% if store_filter == 'terabyte' %}selected{% endif %}>Terabyte</option>
             </select>
         </div>
 
@@ -104,6 +105,8 @@
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-700 mr-1 mb-0.5">Amazon</span>
                                 {% elif store == 'aliexpress' %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700 mr-1 mb-0.5">AliExpress</span>
+                                {% elif store == 'terabyte' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700 mr-1 mb-0.5">Terabyte</span>
                                 {% else %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600 mr-1 mb-0.5">{{ store }}</span>
                                 {% endif %}

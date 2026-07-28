@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from app.database import get_db
-from app.services.price_service import get_product_stats, get_price_history, get_comparison_data, get_link_stats
+from app.services.price_service import get_product_stats, get_price_history, get_comparison_data, get_link_stats, get_best_deal
 
 router = APIRouter(prefix="/api")
 
@@ -16,6 +16,14 @@ async def api_price_history(product_id: int, limit: int = 100):
 async def api_product_stats(product_id: int):
     stats = await get_product_stats(product_id)
     return JSONResponse(stats.model_dump())
+
+
+@router.get("/products/{product_id}/best-deal")
+async def api_best_deal(product_id: int):
+    deal = await get_best_deal(product_id)
+    if deal is None:
+        return JSONResponse({"error": "No price data available"}, status_code=404)
+    return JSONResponse(deal)
 
 
 @router.get("/links/{link_id}/stats")
@@ -46,6 +54,10 @@ async def api_dashboard_summary():
         """)
         scraped_today = (await cursor3.fetchone())["c"]
 
+        # Count total stores in use
+        cursor4 = await db.execute("SELECT COUNT(DISTINCT store) as c FROM product_links")
+        stores_count = (await cursor4.fetchone())["c"]
+
     finally:
         await db.close()
 
@@ -53,4 +65,5 @@ async def api_dashboard_summary():
         "active_products": active,
         "failing_links": failing,
         "scraped_last_24h": scraped_today,
+        "stores_in_use": stores_count,
     })

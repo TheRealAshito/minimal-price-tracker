@@ -3,12 +3,14 @@ from app.scrapers.kabum import KabumScraper
 from app.scrapers.shopee import ShopeeScraper
 from app.scrapers.amazon import AmazonScraper
 from app.scrapers.aliexpress import AliExpressScraper
+from app.scrapers.terabyte import TerabyteScraper
 
 SCRAPERS = {
     "kabum": KabumScraper,
     "shopee": ShopeeScraper,
     "amazon": AmazonScraper,
     "aliexpress": AliExpressScraper,
+    "terabyte": TerabyteScraper,
 }
 
 
@@ -30,4 +32,6 @@ def detect_store(url: str) -> str:
         return "amazon"
     elif "aliexpress.com" in url_lower or "aliexpress." in url_lower:
         return "aliexpress"
+    elif "terabyteshop.com.br" in url_lower or "terabyte.com.br" in url_lower:
+        return "terabyte"
     raise ValueError(f"Could not detect store from URL: {url}")
