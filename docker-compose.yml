@@ -3,7 +3,9 @@ services:
     build: .
     container_name: minimal-price-tracker
     ports:
-      - "127.0.0.1:8035:8035"
+      # Accessible on LAN for reverse proxy (NPM/nginx).
+      # Do NOT expose port 8035 to the internet — use your reverse proxy with SSL.
+      - "8035:8035"
     volumes:
       - ./data:/app/data
     environment:
