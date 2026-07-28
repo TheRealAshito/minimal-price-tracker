@@ -55,6 +55,7 @@ class BaseScraper(ABC):
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-dev-shm-usage",
+                    "--no-sandbox",
                 ],
             )
         return self._browser
