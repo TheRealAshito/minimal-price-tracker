@@ -76,6 +76,7 @@ product_links (individual URLs per product)
   url             TEXT NOT NULL UNIQUE
   store           TEXT CHECK(store IN ('kabum','shopee','amazon','aliexpress','terabyte','generic'))
   custom_selector TEXT          -- user-picked CSS selector (nullable)
+  pre_actions     TEXT          -- JSON array of recorded pre-scrape actions (nullable)
   consecutive_failures INTEGER  -- failure counter per link
   created_at      TIMESTAMP
 
@@ -115,9 +116,16 @@ The element picker lets users visually select the price element on any webpage:
 7. User confirms → selector saved to `product_links.custom_selector`
 
 **Scrape priority per link:**
-1. Custom selector (if set) → tried first
+1. Custom selector (if set) → tried first (with pre_actions replay)
 2. Store-specific cascade → CSS → JSON-LD → meta → regex
 3. Failure recorded if both fail
+
+**Pre-actions (recorded browser interactions):**
+- Stored as JSON array in `product_links.pre_actions`
+- Supported action types: click (x,y), scroll (direction, amount), wait (ms), type (text), goto (url)
+- Auto-recorded during picker navigation
+- Replayed in order before each scrape attempt
+- Used for: dismissing cookie banners, selecting language, scrolling past overlays
 
 **Security:**
 - SSRF protection: blocks private IPs, localhost, link-local

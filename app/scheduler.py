@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import random
 from datetime import datetime
@@ -13,14 +14,14 @@ logger = logging.getLogger("price_tracker.scheduler")
 scheduler = AsyncIOScheduler()
 
 
-async def scrape_link(link_id: int, url: str, store: str, product_id: int, product_name: str, custom_selector: Optional[str] = None):
+async def scrape_link(link_id: int, url: str, store: str, product_id: int, product_name: str, custom_selector: Optional[str] = None, pre_actions: Optional[list] = None):
     """Scrape a single product link and record the result."""
     scraper = get_scraper(store)
     try:
         # Random delay to avoid pattern detection
         await asyncio.sleep(random.uniform(2, 8))
 
-        price, error = await scraper.scrape(url, custom_selector=custom_selector)
+        price, error = await scraper.scrape(url, custom_selector=custom_selector, pre_actions=pre_actions)
 
         db = await get_db()
         try:
@@ -65,7 +66,7 @@ async def run_all_scrapes():
     db = await get_db()
     try:
         cursor = await db.execute("""
-            SELECT pl.id, pl.url, pl.store, pl.custom_selector, p.id as product_id, p.name
+            SELECT pl.id, pl.url, pl.store, pl.custom_selector, pl.pre_actions, p.id as product_id, p.name
             FROM product_links pl
             JOIN products p ON p.id = pl.product_id
             WHERE p.active = 1
@@ -79,8 +80,16 @@ async def run_all_scrapes():
         return
 
     for link in links:
+        # Parse pre_actions JSON if present
+        pre_actions = None
+        if link["pre_actions"]:
+            try:
+                pre_actions = json.loads(link["pre_actions"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         await scrape_link(link["id"], link["url"], link["store"], link["product_id"], link["name"],
-                         custom_selector=link["custom_selector"])
+                         custom_selector=link["custom_selector"], pre_actions=pre_actions)
 
     logger.info(f"Scrape run complete. Processed {len(links)} links.")
 
@@ -93,7 +102,7 @@ async def run_single_product(product_id: int):
     db = await get_db()
     try:
         cursor = await db.execute("""
-            SELECT pl.id, pl.url, pl.store, pl.custom_selector, p.name
+            SELECT pl.id, pl.url, pl.store, pl.custom_selector, pl.pre_actions, p.name
             FROM product_links pl
             JOIN products p ON p.id = pl.product_id
             WHERE pl.product_id = ?
@@ -101,8 +110,15 @@ async def run_single_product(product_id: int):
         links = await cursor.fetchall()
 
         for link in links:
+            pre_actions = None
+            if link["pre_actions"]:
+                try:
+                    pre_actions = json.loads(link["pre_actions"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
             await scrape_link(link["id"], link["url"], link["store"], product_id, link["name"],
-                             custom_selector=link["custom_selector"])
+                             custom_selector=link["custom_selector"], pre_actions=pre_actions)
     finally:
         await db.close()
 
@@ -112,15 +128,22 @@ async def run_single_link(link_id: int):
     db = await get_db()
     try:
         cursor = await db.execute("""
-            SELECT pl.id, pl.url, pl.store, pl.custom_selector, pl.product_id, p.name
+            SELECT pl.id, pl.url, pl.store, pl.custom_selector, pl.pre_actions, pl.product_id, p.name
             FROM product_links pl
             JOIN products p ON p.id = pl.product_id
             WHERE pl.id = ?
         """, (link_id,))
         link = await cursor.fetchone()
         if link:
+            pre_actions = None
+            if link["pre_actions"]:
+                try:
+                    pre_actions = json.loads(link["pre_actions"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
             await scrape_link(link["id"], link["url"], link["store"], link["product_id"], link["name"],
-                             custom_selector=link["custom_selector"])
+                             custom_selector=link["custom_selector"], pre_actions=pre_actions)
     finally:
         await db.close()
 

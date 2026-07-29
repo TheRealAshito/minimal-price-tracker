@@ -8,198 +8,150 @@
     <script>
         tailwind.config = {
             darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        dark: {
-                            900: '#0f172a', 800: '#1e293b', 700: '#334155',
-                            600: '#475569', 500: '#64748b',
-                        }
-                    }
-                }
-            }
+            theme: { extend: { colors: { dark: { 900: '#0f172a', 800: '#1e293b', 700: '#334155', 600: '#475569', 500: '#64748b' } } } }
         }
     </script>
     <style>
-        #screenshot-container {
-            position: relative;
-            display: inline-block;
-            cursor: crosshair;
-        }
-        #screenshot-container img {
-            display: block;
-            max-width: 100%;
-            height: auto;
-        }
-        .element-overlay {
-            position: absolute;
-            border: 2px solid transparent;
-            cursor: pointer;
-            transition: border-color 0.1s, background-color 0.1s;
-            pointer-events: auto;
-        }
-        .element-overlay:hover {
-            border-color: #34d399;
-            background-color: rgba(52, 211, 153, 0.15);
-        }
-        .element-overlay.selected {
-            border-color: #f59e0b;
-            background-color: rgba(245, 158, 11, 0.25);
-            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4);
-        }
-        #loading-spinner {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #334155;
-            border-top: 4px solid #34d399;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        #screenshot-container { position: relative; display: inline-block; cursor: default; }
+        #screenshot-container img { display: block; max-width: 100%; height: auto; }
+        #screenshot-container.mode-navigate { cursor: pointer; }
+        #screenshot-container.mode-pick { cursor: crosshair; }
+        .element-overlay { position: absolute; border: 2px solid transparent; pointer-events: none; transition: border-color 0.15s, background-color 0.15s; }
+        .element-overlay.highlight { border-color: #34d399; background-color: rgba(52, 211, 153, 0.1); }
+        .element-overlay.selected { border-color: #f59e0b; background-color: rgba(245, 158, 11, 0.2); box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4); }
+        .spinner { width: 36px; height: 36px; border: 4px solid #334155; border-top: 4px solid #34d399; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .step-item { font-family: monospace; font-size: 12px; }
+        .action-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .action-click { background: #1e3a5f; color: #60a5fa; }
+        .action-scroll { background: #2d1b4e; color: #c084fc; }
+        .action-wait { background: #1a3329; color: #6ee7b7; }
+        .action-type { background: #3b2f1a; color: #fbbf24; }
+        .action-goto { background: #3b1a1a; color: #f87171; }
     </style>
 </head>
-<body class="dark bg-dark-900 text-gray-200 min-h-screen">
+<body class="dark bg-dark-900 text-gray-200 min-h-screen flex flex-col">
 
-    <!-- Header -->
+    <!-- Top Bar -->
     <nav class="bg-dark-800 border-b border-dark-700 sticky top-0 z-50">
-        <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-14">
-                <div class="flex items-center space-x-4">
-                    <a href="/products/{{ product_id }}" class="text-gray-400 hover:text-white transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                        </svg>
-                    </a>
-                    <div>
-                        <h1 class="text-sm font-bold text-white">Element Picker</h1>
-                        <p class="text-xs text-gray-400">{{ product_name }} &mdash; {{ link.store }}</p>
-                    </div>
+        <div class="max-w-full mx-auto px-4 flex items-center justify-between h-12">
+            <div class="flex items-center gap-3">
+                <a href="/products/{{ product_id }}" class="text-gray-400 hover:text-white">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                </a>
+                <div>
+                    <span class="text-sm font-bold text-white">Element Picker</span>
+                    <span class="text-xs text-gray-400 ml-2">{{ product_name }}</span>
                 </div>
-                <div class="flex items-center space-x-3">
-                    <span class="text-xs text-gray-500 max-w-md truncate">{{ link.url }}</span>
+            </div>
+
+            <!-- Mode Toggle -->
+            <div class="flex items-center gap-2">
+                <div class="bg-dark-700 rounded-lg p-0.5 flex">
+                    <button id="btn-navigate" onclick="setMode('navigate')" class="px-3 py-1 rounded-md text-xs font-medium transition-colors bg-emerald-600 text-white">
+                        🖱️ Navigate
+                    </button>
+                    <button id="btn-pick" onclick="setMode('pick')" class="px-3 py-1 rounded-md text-xs font-medium transition-colors text-gray-400 hover:text-white">
+                        🎯 Pick Element
+                    </button>
                 </div>
+                <span id="status-text" class="text-xs text-gray-500 max-w-xs truncate"></span>
+            </div>
+
+            <!-- Confirm / Cancel -->
+            <div class="flex items-center gap-2">
+                <button id="btn-confirm" onclick="confirmSelection()" disabled
+                        class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-md text-xs font-medium transition-colors">
+                    Confirm Selection
+                </button>
             </div>
         </div>
     </nav>
 
-    <div class="max-w-full mx-auto px-4 py-4">
-        <div class="grid grid-cols-12 gap-4">
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Main: Browser Viewport -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- URL Bar -->
+            <div class="bg-dark-800 border-b border-dark-700 px-3 py-1.5 flex items-center gap-2">
+                <button onclick="goBack()" class="text-gray-500 hover:text-gray-300 p-1" title="Reload page">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </button>
+                <div class="flex-1 bg-dark-700 rounded px-3 py-1 text-xs text-gray-300 font-mono truncate" id="url-display">{{ link.url }}</div>
+            </div>
 
-            <!-- Main: Screenshot Area -->
-            <div class="col-span-12 lg:col-span-9">
-                <!-- Status Bar -->
-                <div class="bg-dark-800 rounded-lg border border-dark-700 px-4 py-2 mb-3 flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <span id="status-text" class="text-sm text-gray-400">Loading page...</span>
-                        <span id="element-count" class="text-xs text-gray-500"></span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button id="btn-reload" onclick="loadPage()" class="text-xs bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-1.5 rounded transition-colors hidden">
-                            Reload
-                        </button>
+            <!-- Scroll Controls -->
+            <div class="bg-dark-800 border-b border-dark-700 px-3 py-1 flex items-center gap-2">
+                <span class="text-xs text-gray-500">Scroll:</span>
+                <button onclick="doScroll('up', 5)" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 py-0.5 rounded text-xs">↑ Up</button>
+                <button onclick="doScroll('down', 5)" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 py-0.5 rounded text-xs">↓ Down</button>
+                <div class="border-l border-dark-600 mx-2 h-4"></div>
+                <button onclick="doWait(3000)" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 py-0.5 rounded text-xs">⏱ Wait 3s</button>
+                <button onclick="doWait(5000)" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 py-0.5 rounded text-xs">⏱ Wait 5s</button>
+                <div class="border-l border-dark-600 mx-2 h-4"></div>
+                <button onclick="undoLastAction()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 py-0.5 rounded text-xs">↩ Undo</button>
+            </div>
+
+            <!-- Screenshot Area -->
+            <div class="flex-1 overflow-auto bg-dark-900 p-2" id="viewport-scroll">
+                <!-- Loading -->
+                <div id="loading-spinner" class="flex items-center justify-center h-full">
+                    <div class="text-center">
+                        <div class="spinner mx-auto mb-3"></div>
+                        <p class="text-sm text-gray-400">Loading page...</p>
                     </div>
                 </div>
 
-                <!-- Screenshot Container -->
-                <div class="bg-dark-800 rounded-lg border border-dark-700 overflow-auto" style="max-height: calc(100vh - 160px);">
-                    <!-- Loading State -->
-                    <div id="loading-spinner" class="py-20">
-                        <div class="text-center">
-                            <div class="spinner mx-auto mb-4"></div>
-                            <p class="text-sm text-gray-400">Loading page and extracting elements...</p>
-                            <p class="text-xs text-gray-500 mt-1">This may take 10-15 seconds</p>
-                        </div>
-                    </div>
+                <!-- Screenshot -->
+                <div id="screenshot-container" class="hidden mode-navigate">
+                    <img id="screenshot-img" src="" alt="Page screenshot" />
+                </div>
 
-                    <!-- Screenshot with overlays (hidden until loaded) -->
-                    <div id="screenshot-container" class="hidden">
-                        <img id="screenshot-img" src="" alt="Page screenshot" />
-                        <!-- Overlays are injected here by JS -->
+                <!-- Error -->
+                <div id="error-state" class="hidden flex items-center justify-center h-full">
+                    <div class="text-center">
+                        <p class="text-red-400 text-sm mb-3" id="error-message"></p>
+                        <button onclick="startSession()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-4 py-2 rounded text-sm">Try Again</button>
                     </div>
+                </div>
+            </div>
+        </div>
 
-                    <!-- Error state -->
-                    <div id="error-state" class="hidden py-20 text-center">
-                        <svg class="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.072 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                        </svg>
-                        <p id="error-message" class="text-red-400 text-sm"></p>
-                        <button onclick="loadPage()" class="mt-4 bg-dark-700 hover:bg-dark-600 text-gray-300 px-4 py-2 rounded text-sm">Try Again</button>
+        <!-- Right Panel: Recorded Actions + Selection -->
+        <div class="w-80 bg-dark-800 border-l border-dark-700 flex flex-col overflow-hidden">
+            <!-- Selection Preview (shown when element is picked) -->
+            <div id="selection-panel" class="border-b border-dark-700 p-3 hidden">
+                <h3 class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">🎯 Selected Element</h3>
+                <div class="space-y-1.5">
+                    <div>
+                        <span class="text-xs text-gray-500">Value:</span>
+                        <div id="preview-text" class="text-sm font-mono font-bold text-white">—</div>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Selector:</span>
+                        <div id="preview-selector" class="text-xs font-mono text-gray-400 bg-dark-700 rounded p-1.5 break-all">—</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Panel: Selection & Preview -->
-            <div class="col-span-12 lg:col-span-3 space-y-4">
-                <!-- Instructions -->
-                <div class="bg-dark-800 rounded-lg border border-dark-700 p-4">
-                    <h3 class="text-sm font-semibold text-gray-300 mb-2">How to use</h3>
-                    <ol class="text-xs text-gray-400 space-y-1.5 list-decimal list-inside">
-                        <li>Click on the <strong class="text-emerald-400">price element</strong> in the screenshot</li>
-                        <li>Verify the extracted value looks correct</li>
-                        <li>Click "Confirm Selection" to save</li>
-                    </ol>
+            <!-- Recorded Actions -->
+            <div class="flex-1 overflow-hidden flex flex-col">
+                <div class="px-3 py-2 border-b border-dark-700 flex items-center justify-between">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Recorded Steps</h3>
+                    <span id="action-count" class="text-xs text-gray-500">0 steps</span>
+                </div>
+                <div id="actions-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+                    <p class="text-xs text-gray-500 italic p-2">Actions are recorded as you navigate. Click, scroll, and wait actions will appear here.</p>
                 </div>
 
-                <!-- Selection Preview -->
-                <div id="selection-panel" class="bg-dark-800 rounded-lg border border-dark-700 p-4 hidden">
-                    <h3 class="text-sm font-semibold text-emerald-400 mb-3">Selected Element</h3>
-                    <div class="space-y-3">
-                        <div>
-                            <label class="text-xs text-gray-500 block">Extracted Value</label>
-                            <div id="preview-text" class="text-lg font-mono font-bold text-white mt-1">—</div>
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500 block">Tag</label>
-                            <div id="preview-tag" class="text-sm text-gray-300 font-mono mt-1">—</div>
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500 block">CSS Selector</label>
-                            <div id="preview-selector" class="text-xs text-gray-400 font-mono mt-1 break-all bg-dark-700 rounded p-2">—</div>
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500 block">Classes</label>
-                            <div id="preview-classes" class="text-xs text-gray-400 font-mono mt-1">—</div>
-                        </div>
+                <!-- Add Manual Step -->
+                <div class="border-t border-dark-700 p-2">
+                    <div class="flex gap-1">
+                        <button onclick="addWaitStep(2000)" class="flex-1 bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 py-1 rounded text-xs">+ 2s Wait</button>
+                        <button onclick="addWaitStep(5000)" class="flex-1 bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 py-1 rounded text-xs">+ 5s Wait</button>
+                        <button onclick="addWaitStep(10000)" class="flex-1 bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 py-1 rounded text-xs">+ 10s Wait</button>
                     </div>
+                    <button onclick="clearActions()" class="w-full mt-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 px-2 py-1 rounded text-xs border border-red-800/50">Clear All Steps</button>
                 </div>
-
-                <!-- Confirm Button -->
-                <div id="confirm-panel" class="hidden">
-                    <button id="btn-confirm" onclick="confirmSelection()"
-                            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                        </svg>
-                        Confirm Selection
-                    </button>
-                </div>
-
-                <!-- Current Selector (if any) -->
-                {% if link.custom_selector %}
-                <div class="bg-dark-800 rounded-lg border border-amber-700/50 p-4">
-                    <h3 class="text-sm font-semibold text-amber-400 mb-2">Current Custom Selector</h3>
-                    <div class="text-xs text-gray-400 font-mono bg-dark-700 rounded p-2 break-all mb-3">
-                        {{ link.custom_selector }}
-                    </div>
-                    <button onclick="clearSelector()"
-                            class="w-full bg-red-900/50 hover:bg-red-800 text-red-300 border border-red-700 text-xs font-medium py-2 px-3 rounded transition-colors">
-                        Remove Custom Selector
-                    </button>
-                </div>
-                {% endif %}
-
-                <!-- Back Button -->
-                <a href="/products/{{ product_id }}"
-                   class="block w-full text-center bg-dark-700 hover:bg-dark-600 text-gray-300 font-medium py-2 px-4 rounded-md transition-colors text-sm">
-                    Back to Product
-                </a>
             </div>
         </div>
     </div>
@@ -210,114 +162,214 @@
     const URL = "{{ link.url }}";
     const STORE = "{{ link.store }}";
 
-    let elements = [];
-    let selectedIndex = null;
+    let sessionId = null;
+    let mode = 'navigate'; // 'navigate' or 'pick'
+    let recordedActions = [];
+    let selectedElement = null;
 
-    async function loadPage() {
-        const spinner = document.getElementById('loading-spinner');
-        const container = document.getElementById('screenshot-container');
-        const errorState = document.getElementById('error-state');
-        const reloadBtn = document.getElementById('btn-reload');
+    // ── Session lifecycle ──────────────────────────────────────
 
-        spinner.classList.remove('hidden');
-        container.classList.add('hidden');
-        errorState.classList.add('hidden');
-        reloadBtn.classList.add('hidden');
-        document.getElementById('status-text').textContent = 'Loading page...';
-
+    async function startSession() {
+        showLoading(true);
         try {
-            const resp = await fetch('/picker/load', {
+            const resp = await fetch('/picker/session/start', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({url: URL, store: STORE}),
             });
-
             if (!resp.ok) {
                 const err = await resp.json();
-                throw new Error(err.detail || 'Failed to load page');
+                throw new Error(err.detail || 'Failed to start session');
             }
-
             const data = await resp.json();
-            elements = data.elements || [];
-
-            // Set screenshot
-            document.getElementById('screenshot-img').src = 'data:image/png;base64,' + data.screenshot;
-
-            // Wait for image to load
-            await new Promise((resolve) => {
-                document.getElementById('screenshot-img').onload = resolve;
-            });
-
-            // Create element overlays
-            createOverlays();
-
-            spinner.classList.add('hidden');
-            container.classList.remove('hidden');
-            reloadBtn.classList.remove('hidden');
-            document.getElementById('status-text').textContent = data.title || 'Page loaded';
-            document.getElementById('element-count').textContent = `${elements.length} elements found`;
-
+            sessionId = data.session_id;
+            recordedActions = data.recorded_actions || [];
+            updateScreenshot(data.screenshot);
+            updateActionsList();
+            document.getElementById('url-display').textContent = data.url || URL;
+            showLoading(false);
         } catch (e) {
-            spinner.classList.add('hidden');
-            errorState.classList.remove('hidden');
-            document.getElementById('error-message').textContent = e.message;
-            document.getElementById('status-text').textContent = 'Error';
-            reloadBtn.classList.remove('hidden');
+            showError(e.message);
         }
     }
 
-    function createOverlays() {
+    async function executeAction(type, extra = {}) {
+        if (!sessionId) return;
+        showLoading(true);
+        try {
+            const resp = await fetch('/picker/session/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_id: sessionId, type, ...extra}),
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Action failed');
+            }
+            const data = await resp.json();
+            recordedActions = data.recorded_actions || [];
+            updateScreenshot(data.screenshot);
+            updateActionsList();
+            document.getElementById('url-display').textContent = data.url || URL;
+            showLoading(false);
+        } catch (e) {
+            showLoading(false);
+            document.getElementById('status-text').textContent = 'Error: ' + e.message;
+        }
+    }
+
+    // ── Click handling ─────────────────────────────────────────
+
+    document.getElementById('screenshot-container').addEventListener('click', async (e) => {
+        if (!sessionId) return;
+        const img = document.getElementById('screenshot-img');
+        const rect = img.getBoundingClientRect();
+        const x = Math.round(e.clientX - rect.left);
+        const y = Math.round(e.clientY - rect.top);
+
+        if (mode === 'navigate') {
+            await executeAction('click', {x, y});
+        } else if (mode === 'pick') {
+            await pickElement(x, y);
+        }
+    });
+
+    // Mousewheel scroll on viewport
+    document.getElementById('viewport-scroll').addEventListener('wheel', async (e) => {
+        if (!sessionId || mode !== 'navigate') return;
+        e.preventDefault();
+        const direction = e.deltaY > 0 ? 'down' : 'up';
+        await executeAction('scroll', {direction, amount: 1});
+    }, {passive: false});
+
+    // ── Pick element ───────────────────────────────────────────
+
+    async function pickElement(x, y) {
+        if (!sessionId) return;
+        try {
+            const resp = await fetch('/picker/session/pick', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_id: sessionId, x, y}),
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Pick failed');
+            }
+            const data = await resp.json();
+            selectedElement = data;
+
+            // Show selection panel
+            document.getElementById('selection-panel').classList.remove('hidden');
+            document.getElementById('preview-text').textContent = data.text || '(no text)';
+            document.getElementById('preview-selector').textContent = data.selector;
+            document.getElementById('btn-confirm').disabled = false;
+
+            // Highlight on screenshot
+            highlightElement(data.bbox);
+        } catch (e) {
+            document.getElementById('status-text').textContent = 'Pick error: ' + e.message;
+        }
+    }
+
+    function highlightElement(bbox) {
         const container = document.getElementById('screenshot-container');
-        // Remove old overlays
         container.querySelectorAll('.element-overlay').forEach(el => el.remove());
 
         const img = document.getElementById('screenshot-img');
         const scaleX = img.clientWidth / 1280;
         const scaleY = img.clientHeight / 900;
 
-        for (const el of elements) {
-            const div = document.createElement('div');
-            div.className = 'element-overlay';
-            div.dataset.index = el.index;
-            div.style.left = (el.bbox.x * scaleX) + 'px';
-            div.style.top = (el.bbox.y * scaleY) + 'px';
-            div.style.width = (el.bbox.w * scaleX) + 'px';
-            div.style.height = (el.bbox.h * scaleY) + 'px';
-            div.title = el.text.substring(0, 60);
+        const div = document.createElement('div');
+        div.className = 'element-overlay selected';
+        div.style.left = (bbox.x * scaleX) + 'px';
+        div.style.top = (bbox.y * scaleY) + 'px';
+        div.style.width = (bbox.w * scaleX) + 'px';
+        div.style.height = (bbox.h * scaleY) + 'px';
+        container.appendChild(div);
+    }
 
-            div.addEventListener('click', (e) => {
-                e.stopPropagation();
-                selectElement(el.index);
-            });
+    // ── Mode toggle ────────────────────────────────────────────
 
-            container.appendChild(div);
+    function setMode(m) {
+        mode = m;
+        const container = document.getElementById('screenshot-container');
+        const btnNav = document.getElementById('btn-navigate');
+        const btnPick = document.getElementById('btn-pick');
+
+        if (m === 'navigate') {
+            container.className = 'mode-navigate';
+            btnNav.className = 'px-3 py-1 rounded-md text-xs font-medium transition-colors bg-emerald-600 text-white';
+            btnPick.className = 'px-3 py-1 rounded-md text-xs font-medium transition-colors text-gray-400 hover:text-white';
+            document.getElementById('status-text').textContent = 'Navigate mode — click to interact with the page';
+        } else {
+            container.className = 'mode-pick';
+            btnNav.className = 'px-3 py-1 rounded-md text-xs font-medium transition-colors text-gray-400 hover:text-white';
+            btnPick.className = 'px-3 py-1 rounded-md text-xs font-medium transition-colors bg-amber-600 text-white';
+            document.getElementById('status-text').textContent = 'Pick mode — click on the price element';
         }
     }
 
-    function selectElement(index) {
-        selectedIndex = index;
-        const el = elements.find(e => e.index === index);
-        if (!el) return;
+    // ── Scroll / Wait controls ─────────────────────────────────
 
-        // Highlight selected
-        document.querySelectorAll('.element-overlay').forEach(overlay => {
-            overlay.classList.toggle('selected', parseInt(overlay.dataset.index) === index);
-        });
-
-        // Show preview
-        document.getElementById('selection-panel').classList.remove('hidden');
-        document.getElementById('confirm-panel').classList.remove('hidden');
-        document.getElementById('preview-text').textContent = el.text || el.directText || '(empty)';
-        document.getElementById('preview-tag').textContent = `<${el.tag}>`;
-        document.getElementById('preview-selector').textContent = el.selector;
-        document.getElementById('preview-classes').textContent = el.classes || '(none)';
+    async function doScroll(direction, amount) {
+        await executeAction('scroll', {direction, amount});
     }
 
-    async function confirmSelection() {
-        if (selectedIndex === null) return;
+    async function doWait(ms) {
+        await executeAction('wait', {ms});
+    }
 
-        const el = elements.find(e => e.index === selectedIndex);
-        if (!el) return;
+    async function goBack() {
+        // Reload from original URL
+        await executeAction('goto', {url: URL});
+    }
+
+    async function undoLastAction() {
+        if (!sessionId || recordedActions.length === 0) return;
+        showLoading(true);
+        try {
+            const resp = await fetch('/picker/session/undo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_id: sessionId}),
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || 'Undo failed');
+            }
+            const data = await resp.json();
+            recordedActions = data.recorded_actions || [];
+            updateScreenshot(data.screenshot);
+            updateActionsList();
+            showLoading(false);
+        } catch (e) {
+            showLoading(false);
+            document.getElementById('status-text').textContent = 'Undo error: ' + e.message;
+        }
+    }
+
+    // ── Manual step editor ─────────────────────────────────────
+
+    function addWaitStep(ms) {
+        recordedActions.push({type: 'wait', ms});
+        updateActionsList();
+    }
+
+    function removeStep(index) {
+        recordedActions.splice(index, 1);
+        updateActionsList();
+    }
+
+    function clearActions() {
+        recordedActions = [];
+        updateActionsList();
+    }
+
+    // ── Confirm selection ──────────────────────────────────────
+
+    async function confirmSelection() {
+        if (!selectedElement || !sessionId) return;
 
         const btn = document.getElementById('btn-confirm');
         btn.disabled = true;
@@ -329,19 +381,25 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     link_id: LINK_ID,
-                    selector: el.selector,
-                    preview_text: el.text || el.directText || '',
+                    selector: selectedElement.selector,
+                    preview_text: selectedElement.text || '',
+                    pre_actions: recordedActions,
                 }),
             });
-
             if (!resp.ok) {
                 const err = await resp.json();
-                throw new Error(err.detail || 'Failed to save selector');
+                throw new Error(err.detail || 'Save failed');
             }
 
-            // Success — redirect back to product page
-            window.location.href = `/products/${PRODUCT_ID}`;
+            // Clean up session
+            await fetch('/picker/session/cancel', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({session_id: sessionId}),
+            });
 
+            // Redirect back
+            window.location.href = `/products/${PRODUCT_ID}`;
         } catch (e) {
             alert('Error: ' + e.message);
             btn.disabled = false;
@@ -349,31 +407,75 @@
         }
     }
 
-    async function clearSelector() {
-        if (!confirm('Remove the custom selector? The scraper will revert to auto-detection.')) return;
+    // ── UI helpers ─────────────────────────────────────────────
 
-        try {
-            const resp = await fetch('/picker/clear', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({link_id: LINK_ID}),
-            });
+    function updateScreenshot(b64) {
+        document.getElementById('screenshot-img').src = 'data:image/png;base64,' + b64;
+        document.getElementById('screenshot-container').classList.remove('hidden');
+        document.getElementById('loading-spinner').classList.add('hidden');
+        document.getElementById('error-state').classList.add('hidden');
+    }
 
-            if (!resp.ok) throw new Error('Failed to clear selector');
-
-            window.location.href = `/products/${PRODUCT_ID}`;
-        } catch (e) {
-            alert('Error: ' + e.message);
+    function showLoading(show) {
+        if (show) {
+            document.getElementById('loading-spinner').classList.remove('hidden');
+            document.getElementById('screenshot-container').classList.add('hidden');
         }
     }
 
-    // Handle window resize — recalculate overlay positions
-    window.addEventListener('resize', () => {
-        if (elements.length > 0) createOverlays();
-    });
+    function showError(msg) {
+        document.getElementById('loading-spinner').classList.add('hidden');
+        document.getElementById('screenshot-container').classList.add('hidden');
+        document.getElementById('error-state').classList.remove('hidden');
+        document.getElementById('error-message').textContent = msg;
+        document.getElementById('status-text').textContent = 'Error';
+    }
 
-    // Load on page ready
-    loadPage();
+    function updateActionsList() {
+        const list = document.getElementById('actions-list');
+        const count = document.getElementById('action-count');
+        count.textContent = `${recordedActions.length} steps`;
+
+        if (recordedActions.length === 0) {
+            list.innerHTML = '<p class="text-xs text-gray-500 italic p-2">No actions recorded yet. Navigate the page to record steps.</p>';
+            return;
+        }
+
+        list.innerHTML = recordedActions.map((a, i) => {
+            let badge, desc;
+            if (a.type === 'click') {
+                badge = '<span class="action-badge action-click">CLICK</span>';
+                desc = `at (${a.x}, ${a.y})`;
+            } else if (a.type === 'scroll') {
+                badge = '<span class="action-badge action-scroll">SCROLL</span>';
+                desc = `${a.direction || 'down'} ×${a.amount || 3}`;
+            } else if (a.type === 'wait') {
+                badge = '<span class="action-badge action-wait">WAIT</span>';
+                desc = `${(a.ms / 1000).toFixed(0)}s`;
+            } else if (a.type === 'type') {
+                badge = '<span class="action-badge action-type">TYPE</span>`;
+                desc = `"${(a.text || '').substring(0, 20)}"`;
+            } else if (a.type === 'goto') {
+                badge = '<span class="action-badge action-goto">GOTO</span>';
+                desc = (a.url || '').substring(0, 30);
+            } else {
+                badge = `<span class="action-badge">${a.type}</span>`;
+                desc = '';
+            }
+
+            return `<div class="flex items-center gap-2 p-1.5 rounded bg-dark-700/50 hover:bg-dark-700 step-item">
+                <span class="text-gray-500 text-xs w-4">${i + 1}</span>
+                ${badge}
+                <span class="text-gray-300 flex-1 truncate">${desc}</span>
+                <button onclick="removeStep(${i})" class="text-gray-600 hover:text-red-400 text-xs px-1" title="Remove">✕</button>
+            </div>`;
+        }).join('');
+    }
+
+    // ── Init ───────────────────────────────────────────────────
+
+    setMode('navigate');
+    startSession();
     </script>
 </body>
 </html>

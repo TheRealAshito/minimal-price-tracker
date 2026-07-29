@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS product_links (
     url TEXT NOT NULL,
     store TEXT NOT NULL CHECK(store IN ('kabum', 'shopee', 'amazon', 'aliexpress', 'terabyte', 'generic')),
     custom_selector TEXT,
+    pre_actions TEXT,
     consecutive_failures INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
@@ -123,7 +124,16 @@ async def init_db():
                 if needs_v4_migration:
                     await _migrate_v3_to_v4(db)
                 else:
-                    await db.executescript(SCHEMA)
+                    # Check if we need v4→v5 migration (add pre_actions column)
+                    needs_v5_migration = False
+                    if await _table_exists(db, "product_links"):
+                        if not await _column_exists(db, "product_links", "pre_actions"):
+                            needs_v5_migration = True
+
+                    if needs_v5_migration:
+                        await _migrate_v4_to_v5(db)
+                    else:
+                        await db.executescript(SCHEMA)
 
         # Insert default settings if not present
         defaults = {
@@ -306,3 +316,11 @@ async def _migrate_v3_to_v4(db):
 
     await db.commit()
     logger.info(f"Migration v3→v4 complete. {len(products)} products, {len(links)} links, {len(history)} price records preserved. custom_selector added.")
+
+
+async def _migrate_v4_to_v5(db):
+    """Migrate from v4 to v5: add pre_actions column to product_links."""
+    logger.info("Migrating database from v4 to v5 schema (adding pre_actions column)...")
+    await db.execute("ALTER TABLE product_links ADD COLUMN pre_actions TEXT")
+    await db.commit()
+    logger.info("Migration v4→v5 complete. pre_actions column added.")

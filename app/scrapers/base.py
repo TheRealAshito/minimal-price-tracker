@@ -247,7 +247,36 @@ class BaseScraper(ABC):
 
     # ─── Abstract / legacy interface ──────────────────────────────────
 
-    async def _try_custom_selector_url(self, url: str, selector: str) -> Optional[float]:
+    async def _replay_pre_actions(self, page, actions: list):
+        """Replay recorded pre-scrape actions (click, scroll, wait, type, goto)."""
+        if not actions:
+            return
+        for action in actions:
+            try:
+                atype = action.get("type")
+                if atype == "click":
+                    x, y = action.get("x", 0), action.get("y", 0)
+                    await page.mouse.click(x, y)
+                    await page.wait_for_timeout(2000)
+                elif atype == "scroll":
+                    direction = action.get("direction", "down")
+                    amount = action.get("amount", 3)
+                    for _ in range(amount):
+                        await page.mouse.wheel(0, 300 if direction == "down" else -300)
+                        await page.wait_for_timeout(200)
+                    await page.wait_for_timeout(1000)
+                elif atype == "wait":
+                    await page.wait_for_timeout(action.get("ms", 3000))
+                elif atype == "type":
+                    await page.keyboard.type(action.get("text", ""), delay=50)
+                elif atype == "goto":
+                    await page.goto(action["url"], wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(3000)
+                logger.debug(f"[{self.store_name}] Replayed pre-action: {atype}")
+            except Exception as e:
+                logger.warning(f"[{self.store_name}] Pre-action {action.get('type')} failed: {e}")
+
+    async def _try_custom_selector_url(self, url: str, selector: str, pre_actions: Optional[list] = None) -> Optional[float]:
         """
         Try extracting price from a URL using a custom CSS selector.
         Opens a new page, navigates, queries the selector, parses BRL price.
@@ -257,6 +286,10 @@ class BaseScraper(ABC):
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=45000)
             await page.wait_for_timeout(3000)
+
+            # Replay pre-actions (cookie dismiss, language select, etc.)
+            if pre_actions:
+                await self._replay_pre_actions(page, pre_actions)
 
             element = await page.query_selector(selector)
             if not element:
@@ -295,16 +328,17 @@ class BaseScraper(ABC):
         """Extract price from URL. Returns price as float or None if failed."""
         pass
 
-    async def scrape(self, url: str, custom_selector: Optional[str] = None) -> tuple[Optional[float], Optional[str]]:
+    async def scrape(self, url: str, custom_selector: Optional[str] = None, pre_actions: Optional[list] = None) -> tuple[Optional[float], Optional[str]]:
         """
         Main scrape method. Returns (price, error_message).
         If custom_selector is provided, tries it FIRST before falling back
         to the store-specific extract_price method.
+        If pre_actions are provided, replays them before extraction.
         """
         try:
-            # Step 1: Try custom selector if provided
+            # Step 1: Try custom selector if provided (with pre_actions)
             if custom_selector:
-                price = await self._try_custom_selector_url(url, custom_selector)
+                price = await self._try_custom_selector_url(url, custom_selector, pre_actions=pre_actions)
                 if price is not None:
                     logger.info(f"[{self.store_name}] Custom selector override: R$ {price:,.2f}")
                     return price, None
