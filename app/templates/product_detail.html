@@ -103,7 +103,25 @@
 <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h1 class="text-xl font-bold text-white">{{ product.name }}</h1>
+            <div class="flex items-center gap-2">
+                <h1 id="product-name-display" class="text-xl font-bold text-white">{{ product.name }}</h1>
+                <button onclick="toggleRename()" class="text-gray-500 hover:text-gray-300 transition-colors" title="Renomear">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="rename-form" method="post" action="/products/{{ product.id }}/rename" class="hidden mt-2 flex items-center gap-2">
+                <input type="text" name="name" value="{{ product.name }}"
+                       class="bg-dark-700 border border-dark-600 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                       style="min-width: 250px;" required>
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    Salvar
+                </button>
+                <button type="button" onclick="toggleRename()" class="text-gray-400 hover:text-gray-200 px-2 py-1.5 text-sm transition-colors">
+                   Cancelar
+                </button>
+            </form>
             <div class="flex items-center gap-3 mt-2 flex-wrap">
                 {# Status badge #}
                 {% if not product.active %}
@@ -136,6 +154,8 @@
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">AliExpress</span>
                         {% elif link.store == 'terabyte' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-300 border border-green-700">Terabyte</span>
+                        {% elif link.store == 'generic' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-500">Generic</span>
                         {% else %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ link.store }}</span>
                         {% endif %}
@@ -196,6 +216,8 @@
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">AliExpress</span>
                 {% elif bd == 'terabyte' %}
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-300 border border-green-700">Terabyte</span>
+                {% elif bd == 'generic' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-500">Generic</span>
                 {% else %}
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ bd }}</span>
                 {% endif %}
@@ -244,6 +266,8 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">AliExpress</span>
                     {% elif deal.store == 'terabyte' %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-300 border border-green-700">Terabyte</span>
+                    {% elif deal.store == 'generic' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-500">Generic</span>
                     {% else %}
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ deal.store }}</span>
                     {% endif %}
@@ -291,6 +315,8 @@
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">AliExpress</span>
                         {% elif link.store == 'terabyte' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-300 border border-green-700">Terabyte</span>
+                        {% elif link.store == 'generic' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-500">Generic</span>
                         {% else %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ link.store }}</span>
                         {% endif %}
@@ -315,9 +341,23 @@
                         {% else %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">OK</span>
                         {% endif %}
+                        {% if link.custom_selector %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-900/50 text-purple-300 border border-purple-700 ml-1" title="Custom selector: {{ link.custom_selector }}">
+                                Custom
+                            </span>
+                        {% endif %}
                     </td>
                     <td class="px-5 py-3">
                         <div class="flex items-center justify-end gap-2">
+                            <a href="/picker/{{ product.id }}/{{ link.id }}"
+                               class="inline-flex items-center gap-1 bg-purple-900/50 hover:bg-purple-800 text-purple-300 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-purple-700"
+                               title="{% if link.custom_selector %}Re-pick price element{% else %}Pick price element{% endif %}">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                                {% if link.custom_selector %}Re-pick{% else %}Pick{% endif %}
+                            </a>
                             <form method="post" action="/products/{{ product.id }}/links/{{ link.id }}/scrape" class="inline">
                                 <button type="submit" class="inline-flex items-center gap-1 bg-blue-900/50 hover:bg-blue-800 text-blue-300 px-2.5 py-1.5 rounded text-xs font-medium transition-colors border border-blue-700" title="Scrapar agora">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -367,6 +407,7 @@
                 <option value="amazon">Amazon</option>
                 <option value="aliexpress">AliExpress</option>
                 <option value="terabyte">Terabyte</option>
+                <option value="generic">Generic (any website)</option>
             </select>
         </div>
         <div>
@@ -422,6 +463,8 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">AliExpress</span>
                         {% elif h.store == 'terabyte' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-300 border border-green-700">Terabyte</span>
+                        {% elif h.store == 'generic' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-500">Generic</span>
                         {% elif h.store %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600">{{ h.store }}</span>
                         {% else %}
@@ -500,6 +543,15 @@
 {# ── Scripts ─────────────────────────────────────────────────── #}
 {% block scripts %}
 <script>
+    function toggleRename() {
+        const form = document.getElementById('rename-form');
+        const display = document.getElementById('product-name-display');
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
+            form.querySelector('input[name="name"]').focus();
+        }
+    }
+
     const historyData = {{ history | tojson }};
     const successfulData = historyData.filter(h => h.status === 'success' && h.price !== null);
 
@@ -509,6 +561,7 @@
         'amazon': '#3b82f6',      // blue
         'aliexpress': '#ef4444',  // red
         'terabyte': '#22c55e',    // green
+        'generic': '#94a3b8',     // gray
     };
     const defaultColors = ['#10b981', '#8b5cf6', '#06b6d4', '#f59e0b', '#ec4899'];
 
@@ -528,7 +581,7 @@
             return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
         });
 
-        const storeLabels = { 'kabum': 'KaBuM!', 'shopee': 'Shopee', 'amazon': 'Amazon', 'aliexpress': 'AliExpress', 'terabyte': 'Terabyte', 'outro': 'Outro' };
+        const storeLabels = { 'kabum': 'KaBuM!', 'shopee': 'Shopee', 'amazon': 'Amazon', 'aliexpress': 'AliExpress', 'terabyte': 'Terabyte', 'generic': 'Generic', 'outro': 'Outro' };
         let colorIdx = 0;
         const datasets = [];
 

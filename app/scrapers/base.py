@@ -247,14 +247,70 @@ class BaseScraper(ABC):
 
     # ─── Abstract / legacy interface ──────────────────────────────────
 
+    async def _try_custom_selector_url(self, url: str, selector: str) -> Optional[float]:
+        """
+        Try extracting price from a URL using a custom CSS selector.
+        Opens a new page, navigates, queries the selector, parses BRL price.
+        Used by scrape() as the first extraction attempt when custom_selector is set.
+        """
+        page = await self._get_page()
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            await page.wait_for_timeout(3000)
+
+            element = await page.query_selector(selector)
+            if not element:
+                return None
+
+            # Try inner_text first
+            text = await element.inner_text()
+            if text:
+                price = self.parse_brl_price(text.strip())
+                if price and price > 0:
+                    return price
+
+            # Try textContent (captures hidden text nodes)
+            text = await element.evaluate("el => el.textContent")
+            if text:
+                price = self.parse_brl_price(text.strip())
+                if price and price > 0:
+                    return price
+
+            # Try value attribute (for input elements)
+            value = await element.get_attribute("value")
+            if value:
+                price = self.parse_brl_price(value.strip())
+                if price and price > 0:
+                    return price
+
+        except Exception as e:
+            logger.debug(f"[{self.store_name}] Custom selector error: {e}")
+        finally:
+            await page.close()
+            await page.context.close()
+        return None
+
     @abstractmethod
     async def extract_price(self, url: str) -> Optional[float]:
         """Extract price from URL. Returns price as float or None if failed."""
         pass
 
-    async def scrape(self, url: str) -> tuple[Optional[float], Optional[str]]:
-        """Main scrape method. Returns (price, error_message)."""
+    async def scrape(self, url: str, custom_selector: Optional[str] = None) -> tuple[Optional[float], Optional[str]]:
+        """
+        Main scrape method. Returns (price, error_message).
+        If custom_selector is provided, tries it FIRST before falling back
+        to the store-specific extract_price method.
+        """
         try:
+            # Step 1: Try custom selector if provided
+            if custom_selector:
+                price = await self._try_custom_selector_url(url, custom_selector)
+                if price is not None:
+                    logger.info(f"[{self.store_name}] Custom selector override: R$ {price:,.2f}")
+                    return price, None
+                logger.debug(f"[{self.store_name}] Custom selector didn't match, falling back to store logic")
+
+            # Step 2: Fall back to store-specific extraction
             price = await self.extract_price(url)
             if price is None:
                 return None, "Could not extract price from page"

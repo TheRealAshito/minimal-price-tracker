@@ -37,6 +37,7 @@ class ProductLink(BaseModel):
     product_id: int
     url: str
     store: str
+    custom_selector: Optional[str] = None
     consecutive_failures: int
     created_at: str
 

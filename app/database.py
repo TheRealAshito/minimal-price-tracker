@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS product_links (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id INTEGER NOT NULL,
     url TEXT NOT NULL,
-    store TEXT NOT NULL CHECK(store IN ('kabum', 'shopee', 'amazon', 'aliexpress', 'terabyte')),
+    store TEXT NOT NULL CHECK(store IN ('kabum', 'shopee', 'amazon', 'aliexpress', 'terabyte', 'generic')),
+    custom_selector TEXT,
     consecutive_failures INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
@@ -112,7 +113,17 @@ async def init_db():
             if needs_v3_migration:
                 await _migrate_v2_to_v3(db)
             else:
-                await db.executescript(SCHEMA)
+                # Check if we need v3→v4 migration (add generic to CHECK + custom_selector column)
+                needs_v4_migration = False
+                if await _table_exists(db, "product_links"):
+                    check = await _get_check_constraint(db, "product_links", "store")
+                    if "generic" not in check:
+                        needs_v4_migration = True
+
+                if needs_v4_migration:
+                    await _migrate_v3_to_v4(db)
+                else:
+                    await db.executescript(SCHEMA)
 
         # Insert default settings if not present
         defaults = {
@@ -238,3 +249,60 @@ async def _migrate_v2_to_v3(db):
 
     await db.commit()
     logger.info(f"Migration v2→v3 complete. {len(products)} products, {len(links)} links, {len(history)} price records preserved.")
+
+
+async def _migrate_v3_to_v4(db):
+    """Migrate from v3 (5 stores) to v4 (6 stores + custom_selector)."""
+    logger.info("Migrating database from v3 to v4 schema (adding generic store + custom_selector)...")
+
+    # Read all existing data
+    cursor = await db.execute("SELECT * FROM products")
+    products = await cursor.fetchall()
+
+    cursor2 = await db.execute("SELECT * FROM product_links")
+    links = await cursor2.fetchall()
+
+    cursor3 = await db.execute("SELECT * FROM price_history")
+    history = await cursor3.fetchall()
+
+    cursor4 = await db.execute("SELECT key, value FROM settings")
+    settings = await cursor4.fetchall()
+
+    # Drop old tables
+    await db.execute("DROP TABLE IF EXISTS price_history")
+    await db.execute("DROP TABLE IF EXISTS product_links")
+    await db.execute("DROP TABLE IF EXISTS products")
+    await db.execute("DROP TABLE IF EXISTS settings")
+
+    # Create new schema with updated CHECK + custom_selector
+    await db.executescript(SCHEMA)
+
+    # Restore data
+    for p in products:
+        await db.execute(
+            "INSERT INTO products (id, name, alert_price_abs, alert_price_pct, alert_below_mean, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (p[0], p[1], p[2], p[3], p[4], p[5], p[6]),
+        )
+
+    for l in links:
+        # Old schema: id, product_id, url, store, consecutive_failures, created_at
+        # New schema: id, product_id, url, store, custom_selector, consecutive_failures, created_at
+        await db.execute(
+            "INSERT INTO product_links (id, product_id, url, store, custom_selector, consecutive_failures, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?)",
+            (l[0], l[1], l[2], l[3], l[4], l[5]),
+        )
+
+    for h in history:
+        await db.execute(
+            "INSERT INTO price_history (id, link_id, price, status, error_message, scraped_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (h[0], h[1], h[2], h[3], h[4], h[5]),
+        )
+
+    for s in settings:
+        await db.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+            (s[0], s[1]),
+        )
+
+    await db.commit()
+    logger.info(f"Migration v3→v4 complete. {len(products)} products, {len(links)} links, {len(history)} price records preserved. custom_selector added.")

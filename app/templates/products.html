@@ -18,6 +18,7 @@
                 <option value="amazon" {% if store_filter == 'amazon' %}selected{% endif %}>Amazon</option>
                 <option value="aliexpress" {% if store_filter == 'aliexpress' %}selected{% endif %}>AliExpress</option>
                 <option value="terabyte" {% if store_filter == 'terabyte' %}selected{% endif %}>Terabyte</option>
+                <option value="generic" {% if store_filter == 'generic' %}selected{% endif %}>Generic</option>
             </select>
         </div>
 
@@ -107,6 +108,8 @@
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700 mr-1 mb-0.5">AliExpress</span>
                                 {% elif store == 'terabyte' %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700 mr-1 mb-0.5">Terabyte</span>
+                                {% elif store == 'generic' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-500 mr-1 mb-0.5">Generic</span>
                                 {% else %}
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600 mr-1 mb-0.5">{{ store }}</span>
                                 {% endif %}
@@ -254,6 +257,10 @@
         <div class="flex items-center gap-2">
             <span class="inline-block w-3 h-3 rounded-full bg-red-500"></span>
             <span class="text-gray-300">AliExpress</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="inline-block w-3 h-3 rounded-full bg-gray-400"></span>
+            <span class="text-gray-300">Generic</span>
         </div>
     </div>
 </div>

@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.database import init_db
 from app.routers import dashboard, products, alerts, settings, api
 from app.routers import logs as logs_router
+from app.routers import picker as picker_router
 from app.scheduler import start_scheduler, stop_scheduler
 from app.config import settings as app_settings
 from app.log_buffer import setup_log_buffer
@@ -45,3 +46,4 @@ app.include_router(alerts.router)
 app.include_router(settings.router)
 app.include_router(api.router)
 app.include_router(logs_router.router)
+app.include_router(picker_router.router)

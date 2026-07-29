@@ -6,6 +6,7 @@ from app.scrapers.shopee import ShopeeScraper
 from app.scrapers.amazon import AmazonScraper
 from app.scrapers.aliexpress import AliExpressScraper
 from app.scrapers.terabyte import TerabyteScraper
+from app.scrapers.generic import GenericScraper
 
 SCRAPERS = {
     "kabum": KabumScraper,
@@ -13,6 +14,7 @@ SCRAPERS = {
     "amazon": AmazonScraper,
     "aliexpress": AliExpressScraper,
     "terabyte": TerabyteScraper,
+    "generic": GenericScraper,
 }
 
 ALLOWED_STORE_DOMAINS = {
@@ -21,6 +23,7 @@ ALLOWED_STORE_DOMAINS = {
     "amazon": ["amazon.com.br", "amazon.com"],
     "aliexpress": ["aliexpress.com", "aliexpress.us", "aliexpress.ru"],
     "terabyte": ["terabyteshop.com.br"],
+    # "generic" has no domain restriction — any URL is allowed
 }
 
 
@@ -32,7 +35,7 @@ def get_scraper(store: str) -> BaseScraper:
 
 
 def detect_store(url: str) -> str:
-    """Auto-detect store from URL."""
+    """Auto-detect store from URL. Returns 'generic' for unknown sites."""
     url_lower = url.lower()
     if "kabum.com.br" in url_lower:
         return "kabum"
@@ -44,7 +47,8 @@ def detect_store(url: str) -> str:
         return "aliexpress"
     elif "terabyteshop.com.br" in url_lower or "terabyte.com.br" in url_lower:
         return "terabyte"
-    raise ValueError(f"Could not detect store from URL: {url}")
+    # Unknown site — use generic scraper
+    return "generic"
 
 
 def validate_url(url: str, store: str) -> str:
@@ -75,8 +79,8 @@ def validate_url(url: str, store: str) -> str:
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
             raise ValueError(f"Private/internal IP address not allowed: {hostname}")
 
-    # Verify domain matches the detected store
-    if store in ALLOWED_STORE_DOMAINS:
+    # Verify domain matches the detected store (skip for generic)
+    if store != "generic" and store in ALLOWED_STORE_DOMAINS:
         allowed = ALLOWED_STORE_DOMAINS[store]
         if not any(hostname == d or hostname.endswith("." + d) for d in allowed):
             raise ValueError(

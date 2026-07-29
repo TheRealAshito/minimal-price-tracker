@@ -2,6 +2,7 @@ import asyncio
 import logging
 import random
 from datetime import datetime
+from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.database import get_db
 from app.scrapers.registry import get_scraper
@@ -12,14 +13,14 @@ logger = logging.getLogger("price_tracker.scheduler")
 scheduler = AsyncIOScheduler()
 
 
-async def scrape_link(link_id: int, url: str, store: str, product_id: int, product_name: str):
+async def scrape_link(link_id: int, url: str, store: str, product_id: int, product_name: str, custom_selector: Optional[str] = None):
     """Scrape a single product link and record the result."""
     scraper = get_scraper(store)
     try:
         # Random delay to avoid pattern detection
         await asyncio.sleep(random.uniform(2, 8))
 
-        price, error = await scraper.scrape(url)
+        price, error = await scraper.scrape(url, custom_selector=custom_selector)
 
         db = await get_db()
         try:
@@ -64,7 +65,7 @@ async def run_all_scrapes():
     db = await get_db()
     try:
         cursor = await db.execute("""
-            SELECT pl.id, pl.url, pl.store, p.id as product_id, p.name
+            SELECT pl.id, pl.url, pl.store, pl.custom_selector, p.id as product_id, p.name
             FROM product_links pl
             JOIN products p ON p.id = pl.product_id
             WHERE p.active = 1
@@ -78,7 +79,8 @@ async def run_all_scrapes():
         return
 
     for link in links:
-        await scrape_link(link["id"], link["url"], link["store"], link["product_id"], link["name"])
+        await scrape_link(link["id"], link["url"], link["store"], link["product_id"], link["name"],
+                         custom_selector=link["custom_selector"])
 
     logger.info(f"Scrape run complete. Processed {len(links)} links.")
 
@@ -91,7 +93,7 @@ async def run_single_product(product_id: int):
     db = await get_db()
     try:
         cursor = await db.execute("""
-            SELECT pl.id, pl.url, pl.store, p.name
+            SELECT pl.id, pl.url, pl.store, pl.custom_selector, p.name
             FROM product_links pl
             JOIN products p ON p.id = pl.product_id
             WHERE pl.product_id = ?
@@ -99,7 +101,8 @@ async def run_single_product(product_id: int):
         links = await cursor.fetchall()
 
         for link in links:
-            await scrape_link(link["id"], link["url"], link["store"], product_id, link["name"])
+            await scrape_link(link["id"], link["url"], link["store"], product_id, link["name"],
+                             custom_selector=link["custom_selector"])
     finally:
         await db.close()
 
@@ -109,14 +112,15 @@ async def run_single_link(link_id: int):
     db = await get_db()
     try:
         cursor = await db.execute("""
-            SELECT pl.id, pl.url, pl.store, pl.product_id, p.name
+            SELECT pl.id, pl.url, pl.store, pl.custom_selector, pl.product_id, p.name
             FROM product_links pl
             JOIN products p ON p.id = pl.product_id
             WHERE pl.id = ?
         """, (link_id,))
         link = await cursor.fetchone()
         if link:
-            await scrape_link(link["id"], link["url"], link["store"], link["product_id"], link["name"])
+            await scrape_link(link["id"], link["url"], link["store"], link["product_id"], link["name"],
+                             custom_selector=link["custom_selector"])
     finally:
         await db.close()
 

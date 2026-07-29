@@ -133,6 +133,23 @@ async def product_detail(request: Request, product_id: int):
     })
 
 
+@router.post("/{product_id}/rename")
+async def rename_product(
+    product_id: int,
+    name: str = Form(...),
+):
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE products SET name = ? WHERE id = ?",
+            (name.strip(), product_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    return RedirectResponse(f"/products/{product_id}", status_code=303)
+
+
 @router.post("/{product_id}/update")
 async def update_product(
     product_id: int,
