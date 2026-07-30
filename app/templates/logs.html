@@ -55,6 +55,14 @@
             <span class="text-gray-400">ERROR</span>
             <span class="text-red-400 font-mono">{{ stats.error }}</span>
         </div>
+        {% if stats.error > 0 %}
+        <div class="pt-2">
+            <a href="/debug/errors" target="_blank"
+               class="block w-full text-center bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-800/50 text-xs font-medium py-1.5 px-3 rounded transition-colors">
+                View Error Details
+            </a>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -98,7 +106,15 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-1.5 text-xs text-gray-500 truncate max-w-[160px]">{{ entry.logger }}</td>
-                    <td class="px-4 py-1.5 text-gray-300 break-all">{{ entry.message }}</td>
+                    <td class="px-4 py-1.5 text-gray-300 break-all">
+                        {{ entry.message }}
+                        {% if entry.traceback %}
+                        <details class="mt-1">
+                            <summary class="text-xs text-red-400 cursor-pointer hover:text-red-300">Show traceback</summary>
+                            <pre class="text-xs text-red-300 bg-dark-900 rounded p-2 mt-1 overflow-x-auto whitespace-pre-wrap">{{ entry.traceback }}</pre>
+                        </details>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -218,6 +218,7 @@ async def session_start(req: SessionStartRequest):
         await page.goto(url, wait_until="domcontentloaded", timeout=45000)
         await page.wait_for_timeout(3000)
     except Exception as e:
+        logger.error(f"Picker session failed to load {url}: {e}", exc_info=True)
         await browser.close()
         await pw.stop()
         raise HTTPException(500, f"Failed to load page: {str(e)[:200]}")
@@ -293,7 +294,7 @@ async def session_action(req: SessionActionRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Action {req.type} failed: {e}")
+        logger.warning(f"Action {req.type} failed: {e}", exc_info=True)
         # Don't record failed actions
 
     capture = await _capture(session)
@@ -338,7 +339,7 @@ async def session_undo(req: SessionCancelRequest):
                 await page.goto(action["url"], wait_until="domcontentloaded", timeout=30000)
                 await page.wait_for_timeout(3000)
     except Exception as e:
-        logger.warning(f"Undo replay failed: {e}")
+        logger.warning(f"Undo replay failed: {e}", exc_info=True)
 
     capture = await _capture(session)
     return JSONResponse({

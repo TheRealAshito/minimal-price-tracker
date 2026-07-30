@@ -1,8 +1,10 @@
 """
 In-memory log buffer for scraper activity.
 Stores the last N log entries for viewing in the web UI.
+Captures tracebacks for ERROR+ level entries.
 """
 import logging
+import traceback
 from collections import deque
 from datetime import datetime
 from typing import Optional
@@ -21,7 +23,14 @@ class BufferHandler(logging.Handler):
                 "level": record.levelname,
                 "logger": record.name,
                 "message": record.getMessage(),
+                "traceback": None,
             }
+            # Capture traceback for ERROR+ level
+            if record.levelno >= logging.ERROR and record.exc_info and record.exc_info[1]:
+                entry["traceback"] = "".join(traceback.format_exception(*record.exc_info))
+            elif record.levelno >= logging.ERROR and record.stack_info:
+                entry["traceback"] = record.stack_info
+
             _log_buffer.append(entry)
         except Exception:
             pass
@@ -37,6 +46,7 @@ def setup_log_buffer():
     logging.getLogger("price_tracker").setLevel(logging.DEBUG)
     logging.getLogger("price_tracker.scraper").setLevel(logging.DEBUG)
     logging.getLogger("price_tracker.scheduler").setLevel(logging.DEBUG)
+    logging.getLogger("price_tracker.picker").setLevel(logging.DEBUG)
 
 
 def get_logs(level: Optional[str] = None, limit: int = 200) -> list[dict]:
@@ -44,6 +54,12 @@ def get_logs(level: Optional[str] = None, limit: int = 200) -> list[dict]:
     entries = list(_log_buffer)
     if level:
         entries = [e for e in entries if e["level"] == level.upper()]
+    return entries[-limit:]
+
+
+def get_errors(limit: int = 50) -> list[dict]:
+    """Get recent ERROR+ entries with tracebacks."""
+    entries = [e for e in _log_buffer if e["level"] in ("ERROR", "CRITICAL")]
     return entries[-limit:]
 
 
@@ -59,4 +75,5 @@ def get_log_stats() -> dict:
         "info": counts.get("INFO", 0),
         "warning": counts.get("WARNING", 0),
         "error": counts.get("ERROR", 0),
+        "critical": counts.get("CRITICAL", 0),
     }

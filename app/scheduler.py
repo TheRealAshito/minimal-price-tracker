@@ -158,8 +158,26 @@ def start_scheduler(interval_hours: int = 6):
         replace_existing=True,
         next_run_time=datetime.now(),  # Run immediately on startup
     )
+    # Periodic cleanup of stale picker sessions (every 5 minutes)
+    scheduler.add_job(
+        _cleanup_picker_sessions,
+        "interval",
+        minutes=5,
+        id="picker_cleanup",
+        replace_existing=True,
+    )
     scheduler.start()
     logger.info(f"Scheduler started. Scraping every {interval_hours} hours.")
+
+
+async def _cleanup_picker_sessions():
+    """Clean up expired picker sessions to prevent resource leaks."""
+    from app.routers.picker import _cleanup_sessions, _sessions
+    before = len(_sessions)
+    _cleanup_sessions()
+    after = len(_sessions)
+    if before > after:
+        logger.info(f"Picker cleanup: removed {before - after} expired sessions ({after} active)")
 
 
 def stop_scheduler():

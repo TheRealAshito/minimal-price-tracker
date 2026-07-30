@@ -28,6 +28,10 @@
         .action-wait { background: #1a3329; color: #6ee7b7; }
         .action-type { background: #3b2f1a; color: #fbbf24; }
         .action-goto { background: #3b1a1a; color: #f87171; }
+        .progress-bar { height: 3px; background: #334155; overflow: hidden; }
+        .progress-bar .fill { height: 100%; background: #34d399; width: 0%; transition: width 0.3s; }
+        .progress-bar.active .fill { animation: progress 60s linear forwards; }
+        @keyframes progress { from { width: 0%; } to { width: 95%; } }
     </style>
 </head>
 <body class="dark bg-dark-900 text-gray-200 min-h-screen flex flex-col">
@@ -66,6 +70,8 @@
                 </button>
             </div>
         </div>
+        <!-- Progress bar -->
+        <div id="progress-bar" class="progress-bar"><div class="fill"></div></div>
     </nav>
 
     <div class="flex-1 flex overflow-hidden">
@@ -97,7 +103,8 @@
                 <div id="loading-spinner" class="flex items-center justify-center h-full">
                     <div class="text-center">
                         <div class="spinner mx-auto mb-3"></div>
-                        <p class="text-sm text-gray-400">Loading page...</p>
+                        <p class="text-sm text-gray-400" id="loading-message">Loading page...</p>
+                        <p class="text-xs text-gray-500 mt-1">This may take up to 60 seconds for heavy pages</p>
                     </div>
                 </div>
 
@@ -108,9 +115,16 @@
 
                 <!-- Error -->
                 <div id="error-state" class="hidden flex items-center justify-center h-full">
-                    <div class="text-center">
-                        <p class="text-red-400 text-sm mb-3" id="error-message"></p>
-                        <button onclick="startSession()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-4 py-2 rounded text-sm">Try Again</button>
+                    <div class="text-center max-w-md">
+                        <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.072 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                        <p class="text-red-400 text-sm mb-2" id="error-message"></p>
+                        <p class="text-xs text-gray-500 mb-4">Check <a href="/logs?level=ERROR" class="text-blue-400 hover:underline">/logs?level=ERROR</a> for details</p>
+                        <div class="flex gap-2 justify-center">
+                            <button onclick="startSession()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-4 py-2 rounded text-sm">Try Again</button>
+                            <a href="/debug/errors" target="_blank" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-4 py-2 rounded text-sm">View Errors</a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -167,19 +181,59 @@
     let recordedActions = [];
     let selectedElement = null;
 
+    // ── Fetch with timeout ─────────────────────────────────────
+
+    async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const resp = await fetch(url, {...options, signal: controller.signal});
+            clearTimeout(timer);
+            return resp;
+        } catch (e) {
+            clearTimeout(timer);
+            if (e.name === 'AbortError') {
+                throw new Error(`Request timed out after ${timeoutMs/1000}s — the page may be too slow to load`);
+            }
+            throw e;
+        }
+    }
+
+    // ── Progress bar ───────────────────────────────────────────
+
+    function showProgress() {
+        const bar = document.getElementById('progress-bar');
+        bar.classList.remove('active');
+        void bar.offsetWidth; // reflow
+        bar.classList.add('active');
+    }
+
+    function hideProgress() {
+        document.getElementById('progress-bar').classList.remove('active');
+    }
+
     // ── Session lifecycle ──────────────────────────────────────
 
     async function startSession() {
         showLoading(true);
+        showProgress();
+        document.getElementById('loading-message').textContent = 'Loading page... (may take up to 60s)';
         try {
-            const resp = await fetch('/picker/session/start', {
+            const resp = await fetchWithTimeout('/picker/session/start', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({url: URL, store: STORE}),
-            });
+            }, 90000); // 90s for initial load
+
             if (!resp.ok) {
-                const err = await resp.json();
-                throw new Error(err.detail || 'Failed to start session');
+                let detail;
+                try {
+                    const err = await resp.json();
+                    detail = err.detail || err.error || JSON.stringify(err);
+                } catch {
+                    detail = `HTTP ${resp.status}`;
+                }
+                throw new Error(detail);
             }
             const data = await resp.json();
             sessionId = data.session_id;
@@ -187,34 +241,44 @@
             updateScreenshot(data.screenshot);
             updateActionsList();
             document.getElementById('url-display').textContent = data.url || URL;
+            hideProgress();
             showLoading(false);
         } catch (e) {
+            hideProgress();
             showError(e.message);
         }
     }
 
     async function executeAction(type, extra = {}) {
         if (!sessionId) return;
-        showLoading(true);
+        showProgress();
         try {
-            const resp = await fetch('/picker/session/action', {
+            const resp = await fetchWithTimeout('/picker/session/action', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({session_id: sessionId, type, ...extra}),
-            });
+            }, 60000);
+
             if (!resp.ok) {
-                const err = await resp.json();
-                throw new Error(err.detail || 'Action failed');
+                let detail;
+                try {
+                    const err = await resp.json();
+                    detail = err.detail || err.error || JSON.stringify(err);
+                } catch {
+                    detail = `HTTP ${resp.status}`;
+                }
+                throw new Error(detail);
             }
             const data = await resp.json();
             recordedActions = data.recorded_actions || [];
             updateScreenshot(data.screenshot);
             updateActionsList();
             document.getElementById('url-display').textContent = data.url || URL;
-            showLoading(false);
+            hideProgress();
         } catch (e) {
-            showLoading(false);
+            hideProgress();
             document.getElementById('status-text').textContent = 'Error: ' + e.message;
+            console.error('Action error:', e);
         }
     }
 
@@ -247,14 +311,16 @@
     async function pickElement(x, y) {
         if (!sessionId) return;
         try {
-            const resp = await fetch('/picker/session/pick', {
+            const resp = await fetchWithTimeout('/picker/session/pick', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({session_id: sessionId, x, y}),
-            });
+            }, 15000);
+
             if (!resp.ok) {
-                const err = await resp.json();
-                throw new Error(err.detail || 'Pick failed');
+                let detail;
+                try { detail = (await resp.json()).detail; } catch { detail = `HTTP ${resp.status}`; }
+                throw new Error(detail);
             }
             const data = await resp.json();
             selectedElement = data;
@@ -321,30 +387,31 @@
     }
 
     async function goBack() {
-        // Reload from original URL
         await executeAction('goto', {url: URL});
     }
 
     async function undoLastAction() {
         if (!sessionId || recordedActions.length === 0) return;
-        showLoading(true);
+        showProgress();
         try {
-            const resp = await fetch('/picker/session/undo', {
+            const resp = await fetchWithTimeout('/picker/session/undo', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({session_id: sessionId}),
-            });
+            }, 60000);
+
             if (!resp.ok) {
-                const err = await resp.json();
-                throw new Error(err.detail || 'Undo failed');
+                let detail;
+                try { detail = (await resp.json()).detail; } catch { detail = `HTTP ${resp.status}`; }
+                throw new Error(detail);
             }
             const data = await resp.json();
             recordedActions = data.recorded_actions || [];
             updateScreenshot(data.screenshot);
             updateActionsList();
-            showLoading(false);
+            hideProgress();
         } catch (e) {
-            showLoading(false);
+            hideProgress();
             document.getElementById('status-text').textContent = 'Undo error: ' + e.message;
         }
     }
@@ -376,7 +443,7 @@
         btn.textContent = 'Saving...';
 
         try {
-            const resp = await fetch('/picker/confirm', {
+            const resp = await fetchWithTimeout('/picker/confirm', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -385,10 +452,12 @@
                     preview_text: selectedElement.text || '',
                     pre_actions: recordedActions,
                 }),
-            });
+            }, 15000);
+
             if (!resp.ok) {
-                const err = await resp.json();
-                throw new Error(err.detail || 'Save failed');
+                let detail;
+                try { detail = (await resp.json()).detail; } catch { detail = `HTTP ${resp.status}`; }
+                throw new Error(detail);
             }
 
             // Clean up session
@@ -398,7 +467,6 @@
                 body: JSON.stringify({session_id: sessionId}),
             });
 
-            // Redirect back
             window.location.href = `/products/${PRODUCT_ID}`;
         } catch (e) {
             alert('Error: ' + e.message);
@@ -420,6 +488,7 @@
         if (show) {
             document.getElementById('loading-spinner').classList.remove('hidden');
             document.getElementById('screenshot-container').classList.add('hidden');
+            document.getElementById('error-state').classList.add('hidden');
         }
     }
 
@@ -428,7 +497,7 @@
         document.getElementById('screenshot-container').classList.add('hidden');
         document.getElementById('error-state').classList.remove('hidden');
         document.getElementById('error-message').textContent = msg;
-        document.getElementById('status-text').textContent = 'Error';
+        document.getElementById('status-text').textContent = 'Error — see details below';
     }
 
     function updateActionsList() {
@@ -453,7 +522,7 @@
                 badge = '<span class="action-badge action-wait">WAIT</span>';
                 desc = `${(a.ms / 1000).toFixed(0)}s`;
             } else if (a.type === 'type') {
-                badge = '<span class="action-badge action-type">TYPE</span>`;
+                badge = '<span class="action-badge action-type">TYPE</span>';
                 desc = `"${(a.text || '').substring(0, 20)}"`;
             } else if (a.type === 'goto') {
                 badge = '<span class="action-badge action-goto">GOTO</span>';
