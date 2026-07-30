@@ -233,7 +233,7 @@
         <hr class="border-dark-700">
         <div class="flex justify-between text-sm">
             <span class="text-gray-400">Total de Links</span>
-            <span class="text-blue-400 font-medium">{{ products|sum(attribute='link_count') }}</span>
+            <span class="text-blue-400 font-medium">{{ products|sum(attribute='link_count', default=0) }}</span>
         </div>
     </div>
 </div>

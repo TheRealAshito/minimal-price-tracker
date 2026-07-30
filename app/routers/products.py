@@ -111,7 +111,7 @@ async def product_detail(request: Request, product_id: int):
                 (link["id"],),
             )
             fail_row = await cursor4.fetchone()
-            link["consecutive_failures"] = fail_row["consecutive_failures"] if fail_row else 0
+            link["consecutive_failures"] = (fail_row["consecutive_failures"] or 0) if fail_row else 0
 
     finally:
         await db.close()
