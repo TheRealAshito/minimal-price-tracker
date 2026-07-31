@@ -464,7 +464,7 @@ async def picker_confirm(req: PickerConfirmRequest):
     if len(selector) > 500:
         raise HTTPException(400, "Selector too long (max 500 chars).")
 
-    dangerous = ['<', '>', 'javascript:', 'eval(', 'script']
+    dangerous = ['<', 'javascript:', 'eval(', 'script']
     for d in dangerous:
         if d in selector.lower():
             raise HTTPException(400, f"Invalid selector: contains '{d}'.")
