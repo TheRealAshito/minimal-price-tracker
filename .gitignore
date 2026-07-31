@@ -13,3 +13,4 @@ node_modules/
 dist/
 __pycache__/
 tests/test.db
+reports/

@@ -4,10 +4,11 @@ import random
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from playwright.async_api import Browser, Page
+    from playwright.async_api import BrowserContext, Page
 
 logger = logging.getLogger("price_tracker.scraper")
 
@@ -18,6 +19,9 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0",
 ]
+
+# Persistent browser profile directory — keeps cookies across sessions
+BROWSER_PROFILE_DIR = Path("data/browser-profile")
 
 
 @dataclass
@@ -43,31 +47,36 @@ class BaseScraper(ABC):
     regex_patterns: list[str] = field(default_factory=list) if False else []
 
     def __init__(self):
-        self._browser: Optional[Browser] = None
+        self._context: Optional[BrowserContext] = None
         self._playwright = None
 
-    async def _get_browser(self):
-        if self._browser is None or not self._browser.is_connected():
+    async def _get_context(self):
+        """Get or create a persistent browser context (keeps cookies/profile)."""
+        if self._context is None:
             from playwright.async_api import async_playwright
             self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
+
+            # Ensure profile directory exists
+            BROWSER_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+            self._context = await self._playwright.chromium.launch_persistent_context(
+                user_data_dir=str(BROWSER_PROFILE_DIR),
                 headless=True,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--disable-dev-shm-usage",
                     "--no-sandbox",
                 ],
+                user_agent=random.choice(USER_AGENTS),
+                viewport={"width": 1920, "height": 1080},
+                locale="pt-BR",
+                timezone_id="America/Sao_Paulo",
             )
-        return self._browser
+        return self._context
 
     async def _get_page(self):
-        browser = await self._get_browser()
-        context = await browser.new_context(
-            user_agent=random.choice(USER_AGENTS),
-            viewport={"width": 1920, "height": 1080},
-            locale="pt-BR",
-            timezone_id="America/Sao_Paulo",
-        )
+        """Create a new page from the persistent context."""
+        context = await self._get_context()
         page = await context.new_page()
 
         # Apply stealth
@@ -80,10 +89,12 @@ class BaseScraper(ABC):
         return page
 
     async def close(self):
-        if self._browser:
-            await self._browser.close()
+        if self._context:
+            await self._context.close()
+            self._context = None
         if self._playwright:
             await self._playwright.stop()
+            self._playwright = None
 
     # ─── Cascade extraction methods ───────────────────────────────────
 

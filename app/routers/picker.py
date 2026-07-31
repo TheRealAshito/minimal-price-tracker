@@ -42,14 +42,14 @@ def _cleanup_sessions():
 
 
 async def _close_session(session: dict):
-    """Close Playwright resources for a session."""
+    """Close Playwright resources for a session.
+    Closes the page and context (cookies are saved to disk automatically).
+    """
     try:
         if session.get("page"):
             await session["page"].close()
         if session.get("context"):
             await session["context"].close()
-        if session.get("browser"):
-            await session["browser"].close()
         if session.get("playwright"):
             await session["playwright"].stop()
     except Exception as e:
@@ -192,13 +192,17 @@ async def session_start(req: SessionStartRequest):
         raise HTTPException(400, str(e))
 
     from playwright.async_api import async_playwright
+    from app.scrapers.base import BROWSER_PROFILE_DIR
 
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch(
+
+    # Ensure profile directory exists
+    BROWSER_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    context = await pw.chromium.launch_persistent_context(
+        user_data_dir=str(BROWSER_PROFILE_DIR),
         headless=True,
         args=["--disable-blink-features=AutomationControlled", "--disable-dev-shm-usage", "--no-sandbox"],
-    )
-    context = await browser.new_context(
         user_agent=random.choice([
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -219,7 +223,7 @@ async def session_start(req: SessionStartRequest):
         await page.wait_for_timeout(3000)
     except Exception as e:
         logger.error(f"Picker session failed to load {url}: {e}", exc_info=True)
-        await browser.close()
+        await context.close()
         await pw.stop()
         raise HTTPException(500, f"Failed to load page: {str(e)[:200]}")
 
@@ -227,7 +231,7 @@ async def session_start(req: SessionStartRequest):
     session = {
         "id": session_id,
         "playwright": pw,
-        "browser": browser,
+        "browser": None,
         "context": context,
         "page": page,
         "url": url,
