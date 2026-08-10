@@ -3,13 +3,12 @@ import shutil
 from datetime import datetime
 from fastapi import APIRouter, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
-from fastapi.templating import Jinja2Templates
 from app.database import get_db
 from app.config import DB_PATH, settings
 from app.services.backup_service import export_backup
 
 router = APIRouter(prefix="/settings")
-templates = Jinja2Templates(directory="app/templates")
+from app.templates_config import templates
 
 
 @router.get("", response_class=HTMLResponse)
@@ -64,6 +63,20 @@ async def update_interval(scrape_interval_hours: int = Form(6)):
         await db.execute(
             "UPDATE settings SET value = ? WHERE key = 'scrape_interval_hours'",
             (str(scrape_interval_hours),),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@router.post("/date-format")
+async def update_date_format(date_format: str = Form("DD/MM/YYYY")):
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE settings SET value = ? WHERE key = 'date_format'",
+            (date_format,),
         )
         await db.commit()
     finally:

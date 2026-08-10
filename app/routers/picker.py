@@ -14,14 +14,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from app.database import get_db
 from app.scrapers.registry import validate_url, detect_store
 
 logger = logging.getLogger("price_tracker.picker")
 router = APIRouter(prefix="/picker")
-templates = Jinja2Templates(directory="app/templates")
+from app.templates_config import templates
 
 # ── Session management ────────────────────────────────────────────
 _sessions: dict[str, dict] = {}

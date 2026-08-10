@@ -141,6 +141,7 @@ async def init_db():
             "ntfy_port": "",
             "ntfy_topic": "",
             "scrape_interval_hours": "6",
+            "date_format": "DD/MM/YYYY",
         }
         for key, value in defaults.items():
             await db.execute(

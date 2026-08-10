@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
 from app.database import get_db
 from app.scrapers.registry import detect_store, validate_url
 from app.services.price_service import get_product_stats, get_price_history, get_link_stats, get_link_price_history
@@ -8,7 +7,7 @@ from app.services.backup_service import export_product_csv
 from app.scheduler import run_single_product, run_single_link
 
 router = APIRouter(prefix="/products")
-templates = Jinja2Templates(directory="app/templates")
+from app.templates_config import templates
 
 
 @router.get("", response_class=HTMLResponse)

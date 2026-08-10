@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 from app.log_buffer import get_logs, get_log_stats
 
 router = APIRouter(prefix="/logs")
-templates = Jinja2Templates(directory="app/templates")
+from app.templates_config import templates
 
 
 @router.get("", response_class=HTMLResponse)

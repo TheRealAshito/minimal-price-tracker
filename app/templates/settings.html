@@ -141,6 +141,43 @@
                 </button>
             </form>
         </div>
+
+        <!-- Date Format -->
+        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
+            <div class="flex items-center gap-3 mb-4">
+                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+                <h2 class="text-lg font-semibold text-white">Formato de Data</h2>
+            </div>
+            <p class="text-sm text-gray-400 mb-4">
+                Escolha como as datas são exibidas no dashboard, produtos e logs.
+            </p>
+            <form method="post" action="/settings/date-format" class="flex items-end gap-4">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Formato</label>
+                    <select name="date_format" class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        {% set current_fmt = config.get('date_format', 'DD/MM/YYYY') %}
+                        <option value="DD/MM/YYYY" {% if current_fmt == 'DD/MM/YYYY' %}selected{% endif %}>31/07/2026 (DD/MM/YYYY)</option>
+                        <option value="MM/DD/YYYY" {% if current_fmt == 'MM/DD/YYYY' %}selected{% endif %}>07/31/2026 (MM/DD/YYYY)</option>
+                        <option value="YYYY-MM-DD" {% if current_fmt == 'YYYY-MM-DD' %}selected{% endif %}>2026-07-31 (YYYY-MM-DD)</option>
+                        <option value="DD-MM-YYYY" {% if current_fmt == 'DD-MM-YYYY' %}selected{% endif %}>31-07-2026 (DD-MM-YYYY)</option>
+                        <option value="DD Mon YYYY" {% if current_fmt == 'DD Mon YYYY' %}selected{% endif %}>31 Jul 2026 (DD Mon YYYY)</option>
+                        <option value="Mon DD, YYYY" {% if current_fmt == 'Mon DD, YYYY' %}selected{% endif %}>Jul 31, 2026 (Mon DD, YYYY)</option>
+                        <option value="DD/Mon/AAAA (PT)" {% if current_fmt == 'DD/Mon/AAAA (PT)' %}selected{% endif %}>31/Jul/2026 (DD/Mon/AAAA)</option>
+                        <option value="Seg, 31 Ago 2026 (PT)" {% if current_fmt == 'Seg, 31 Ago 2026 (PT)' %}selected{% endif %}>Seg, 31 Jul 2026 (PT)</option>
+                        <option value="DD/MM HH:MM" {% if current_fmt == 'DD/MM HH:MM' %}selected{% endif %}>31/07 14:30 (DD/MM HH:MM)</option>
+                    </select>
+                </div>
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-md transition-colors text-sm">
+                    Salvar Formato
+                </button>
+            </form>
+            <div class="mt-3 text-xs text-gray-500">
+                Exemplo: <span class="text-gray-300 font-mono">{{ format_date("2026-07-31 14:30:00", config.get('date_format', 'DD/MM/YYYY')) }}</span>
+            </div>
+        </div>
     </div>
 
     <!-- Right Sidebar: Tips -->

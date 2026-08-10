@@ -131,6 +131,31 @@ async def test():
             ok("custom_selector column", "custom_selector" in cols)
             ok("pre_actions column", "pre_actions" in cols)
 
+        # ── Date format setting ────────────────────────────────
+        async with aiosqlite.connect(TEST_DB) as conn:
+            cur = await conn.execute("SELECT value FROM settings WHERE key='date_format'")
+            row = await cur.fetchone()
+            ok("date_format default is DD/MM/YYYY", row and row[0] == "DD/MM/YYYY")
+
+        r = await c.post("/settings/date-format", data={"date_format": "DD-MM-YYYY"}, follow_redirects=False)
+        ok("update date format", r.status_code == 303)
+
+        async with aiosqlite.connect(TEST_DB) as conn:
+            cur = await conn.execute("SELECT value FROM settings WHERE key='date_format'")
+            row = await cur.fetchone()
+            ok("date_format persisted", row and row[0] == "DD-MM-YYYY")
+
+        # Test format_date function
+        from app.date_format import format_date, format_datetime
+        ok("format_date DD/MM/YYYY", format_date("2026-07-31 14:30:00", "DD/MM/YYYY") == "31/07/2026")
+        ok("format_date MM/DD/YYYY", format_date("2026-07-31 14:30:00", "MM/DD/YYYY") == "07/31/2026")
+        ok("format_date DD-MM-YYYY", format_date("2026-07-31 14:30:00", "DD-MM-YYYY") == "31-07-2026")
+        ok("format_date YYYY-MM-DD", format_date("2026-07-31 14:30:00", "YYYY-MM-DD") == "2026-07-31")
+        ok("format_date PT month", "Jul" in format_date("2026-07-31 14:30:00", "DD/Mon/AAAA (PT)"))
+        ok("format_datetime has time", "14:30" in format_datetime("2026-07-31 14:30:00", "DD/MM/YYYY"))
+        ok("format_date None safe", format_date(None) == "")
+        ok("format_date empty safe", format_date("") == "")
+
     # Cleanup
     os.remove(TEST_DB)
 

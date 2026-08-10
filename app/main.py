@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from app.database import init_db
+from app.database import init_db, get_db
 from app.routers import dashboard, products, alerts, settings, api
 from app.routers import logs as logs_router
 from app.routers import picker as picker_router
@@ -84,6 +84,24 @@ async def debug_stats():
 
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+
+# ── Middleware: inject date_format into every request ──────────────
+@app.middleware("http")
+async def inject_date_format(request: Request, call_next):
+    """Read date_format setting and make it available in templates."""
+    try:
+        db = await get_db()
+        try:
+            cursor = await db.execute("SELECT value FROM settings WHERE key = 'date_format'")
+            row = await cursor.fetchone()
+            request.state.date_format = row["value"] if row else "DD/MM/YYYY"
+        finally:
+            await db.close()
+    except Exception:
+        request.state.date_format = "DD/MM/YYYY"
+    response = await call_next(request)
+    return response
 
 app.include_router(dashboard.router)
 app.include_router(products.router)
