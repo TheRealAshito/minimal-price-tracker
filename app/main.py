@@ -11,6 +11,7 @@ from app.routers import picker as picker_router
 from app.scheduler import start_scheduler, stop_scheduler
 from app.config import settings as app_settings
 from app.log_buffer import setup_log_buffer, get_errors, get_log_stats
+from app.memory_diagnostics import get_memory_report, log_memory
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,13 +26,16 @@ logger = logging.getLogger("price_tracker")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    log_memory("app_startup")
     logger.info("Initializing database...")
     await init_db()
     logger.info(f"Starting scheduler (interval: {app_settings.scrape_interval_hours}h)...")
     start_scheduler(app_settings.scrape_interval_hours)
+    log_memory("scheduler_started")
     yield
     logger.info("Shutting down scheduler...")
     stop_scheduler()
+    log_memory("app_shutdown")
 
 
 app = FastAPI(
@@ -81,6 +85,12 @@ async def debug_stats():
         "python": sys.version,
         "app_version": "1.0.0",
     })
+
+
+@app.get("/debug/memory")
+async def debug_memory():
+    """Return detailed memory diagnostics."""
+    return JSONResponse(get_memory_report())
 
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

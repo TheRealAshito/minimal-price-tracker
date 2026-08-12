@@ -60,6 +60,8 @@ async def scrape_link(link_id: int, url: str, store: str, product_id: int, produ
 
 async def run_all_scrapes():
     """Scrape all active product links sequentially with delays."""
+    from app.memory_diagnostics import log_memory
+    log_memory("scrape_cycle_start")
     logger.info("Starting scheduled scrape run...")
     db = await get_db()
     try:
@@ -92,10 +94,12 @@ async def run_all_scrapes():
 
     # Prune old data after each run
     await prune_old_data()
+    log_memory("scrape_cycle_done")
 
     # Shut down browser to free ~300MB of RAM between cycles
     from app.browser_manager import browser_manager
     await browser_manager.shutdown()
+    log_memory("browser_shutdown")
 
 
 async def run_single_product(product_id: int):
@@ -177,6 +181,14 @@ def start_scheduler(interval_hours: int = 6):
         id="picker_cleanup",
         replace_existing=True,
     )
+    # Periodic memory logging (every 30 minutes)
+    scheduler.add_job(
+        _log_memory_heartbeat,
+        "interval",
+        minutes=30,
+        id="memory_heartbeat",
+        replace_existing=True,
+    )
     scheduler.start()
     logger.info(f"Scheduler started. Scraping every {interval_hours} hours (first run after interval).")
 
@@ -193,3 +205,9 @@ async def _cleanup_picker_sessions():
 
 def stop_scheduler():
     scheduler.shutdown()
+
+
+async def _log_memory_heartbeat():
+    """Periodic memory logging for diagnostics."""
+    from app.memory_diagnostics import log_memory
+    log_memory("heartbeat")

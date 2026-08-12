@@ -72,6 +72,8 @@ class BrowserManager:
                     timezone_id="America/Sao_Paulo",
                 )
                 logger.info("Chromium started.")
+                from app.memory_diagnostics import log_memory
+                log_memory("chromium_started")
             return self._context
 
     async def new_page(self):
@@ -110,6 +112,8 @@ class BrowserManager:
                     logger.debug(f"Error stopping playwright: {e}")
                 self._playwright = None
             logger.info("Chromium shut down. Memory freed.")
+            from app.memory_diagnostics import log_memory
+            log_memory("chromium_shutdown")
 
     @property
     def is_running(self) -> bool:

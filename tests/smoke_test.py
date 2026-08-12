@@ -58,6 +58,9 @@ async def test():
         r = await c.get("/debug/stats")
         ok("GET /debug/stats", r.status_code == 200 and "log_stats" in r.json())
 
+        r = await c.get("/debug/memory")
+        ok("GET /debug/memory", r.status_code == 200 and "process" in r.json() and "rss_mb" in r.json()["process"])
+
         # ── Product CRUD ───────────────────────────────────────
         r = await c.post("/products/add", data={"name": "Test GPU"})
         ok("create product", r.status_code == 303)
