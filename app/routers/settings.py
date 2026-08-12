@@ -38,24 +38,6 @@ async def settings_page(request: Request):
     })
 
 
-@router.post("/ntfy")
-async def update_ntfy(
-    ntfy_url: str = Form(""),
-    ntfy_port: str = Form(""),
-    ntfy_topic: str = Form(""),
-):
-    db = await get_db()
-    try:
-        for key, value in [("ntfy_url", ntfy_url), ("ntfy_port", ntfy_port), ("ntfy_topic", ntfy_topic)]:
-            await db.execute(
-                "UPDATE settings SET value = ? WHERE key = ?", (value, key)
-            )
-        await db.commit()
-    finally:
-        await db.close()
-    return RedirectResponse("/settings", status_code=303)
-
-
 @router.post("/interval")
 async def update_interval(scrape_interval_hours: int = Form(6)):
     db = await get_db()

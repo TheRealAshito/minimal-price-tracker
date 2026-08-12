@@ -56,8 +56,6 @@ async def scrape_link(link_id: int, url: str, store: str, product_id: int, produ
             await handle_scrape_failure(link_id)
         finally:
             await db.close()
-    finally:
-        await scraper.close()
 
 
 async def run_all_scrapes():
@@ -80,7 +78,6 @@ async def run_all_scrapes():
         return
 
     for link in links:
-        # Parse pre_actions JSON if present
         pre_actions = None
         if link["pre_actions"]:
             try:
@@ -95,6 +92,10 @@ async def run_all_scrapes():
 
     # Prune old data after each run
     await prune_old_data()
+
+    # Shut down browser to free ~300MB of RAM between cycles
+    from app.browser_manager import browser_manager
+    await browser_manager.shutdown()
 
 
 async def run_single_product(product_id: int):
@@ -122,6 +123,10 @@ async def run_single_product(product_id: int):
     finally:
         await db.close()
 
+    # Shut down browser after single product scrape too
+    from app.browser_manager import browser_manager
+    await browser_manager.shutdown()
+
 
 async def run_single_link(link_id: int):
     """Scrape a single link immediately."""
@@ -147,6 +152,10 @@ async def run_single_link(link_id: int):
     finally:
         await db.close()
 
+    # Shut down browser after single link scrape too
+    from app.browser_manager import browser_manager
+    await browser_manager.shutdown()
+
 
 def start_scheduler(interval_hours: int = 6):
     """Start the APScheduler with the given interval."""
@@ -156,7 +165,9 @@ def start_scheduler(interval_hours: int = 6):
         hours=interval_hours,
         id="price_scrape",
         replace_existing=True,
-        next_run_time=datetime.now(),  # Run immediately on startup
+        # No next_run_time — waits for the first interval before scraping.
+        # This keeps Chromium dormant at startup, saving ~300MB RAM.
+        # Trigger a manual scrape from the UI if needed immediately.
     )
     # Periodic cleanup of stale picker sessions (every 5 minutes)
     scheduler.add_job(
@@ -167,7 +178,7 @@ def start_scheduler(interval_hours: int = 6):
         replace_existing=True,
     )
     scheduler.start()
-    logger.info(f"Scheduler started. Scraping every {interval_hours} hours.")
+    logger.info(f"Scheduler started. Scraping every {interval_hours} hours (first run after interval).")
 
 
 async def _cleanup_picker_sessions():

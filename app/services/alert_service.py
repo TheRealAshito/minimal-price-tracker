@@ -1,6 +1,8 @@
+import logging
 from app.database import get_db
 from app.services.price_service import get_product_stats
-from app.services.ntfy_service import send_price_alert, send_failure_alert
+
+logger = logging.getLogger("price_tracker.alerts")
 
 
 async def evaluate_alerts(product_id: int, link_id: int, current_price: float):
@@ -10,17 +12,13 @@ async def evaluate_alerts(product_id: int, link_id: int, current_price: float):
 
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT * FROM products WHERE id = ?", (product_id,)
-        )
+        cursor = await db.execute("SELECT * FROM products WHERE id = ?", (product_id,))
         product = await cursor.fetchone()
         if not product:
             return
 
         # Get the link URL for the alert message
-        cursor_link = await db.execute(
-            "SELECT url FROM product_links WHERE id = ?", (link_id,)
-        )
+        cursor_link = await db.execute("SELECT url FROM product_links WHERE id = ?", (link_id,))
         link = await cursor_link.fetchone()
         link_url = link["url"] if link else ""
 
@@ -28,11 +26,7 @@ async def evaluate_alerts(product_id: int, link_id: int, current_price: float):
 
         # Absolute price alert
         if product["alert_price_abs"] and current_price <= product["alert_price_abs"]:
-            await send_price_alert(
-                product["name"], current_price,
-                "Absolute threshold", product["alert_price_abs"],
-                link_url,
-            )
+            logger.info(f"Price alert: {product['name']} at R$ {current_price:,.2f} (absolute threshold R$ {product['alert_price_abs']:,.2f}) link={link_url}")
 
         # Percentage drop alert (from first tracked price)
         if product["alert_price_pct"] and stats.max_price:
@@ -40,32 +34,23 @@ async def evaluate_alerts(product_id: int, link_id: int, current_price: float):
             if initial_price and initial_price > 0:
                 drop_pct = ((initial_price - current_price) / initial_price) * 100
                 if drop_pct >= product["alert_price_pct"]:
-                    await send_price_alert(
-                        product["name"], current_price,
-                        f"Percentage drop ({drop_pct:.1f}%)", product["alert_price_pct"],
-                        link_url,
-                    )
+                    logger.info(f"Price alert: {product['name']} at R$ {current_price:,.2f} ({drop_pct:.1f}% drop) link={link_url}")
 
         # Below mean alert
         if product["alert_below_mean"] and stats.mean_price:
             if current_price < stats.mean_price:
-                await send_price_alert(
-                    product["name"], current_price,
-                    "Below historical mean", stats.mean_price,
-                    link_url,
-                )
+                logger.info(f"Price alert: {product['name']} at R$ {current_price:,.2f} (below mean R$ {stats.mean_price:,.2f}) link={link_url}")
     finally:
         await db.close()
 
 
 async def handle_scrape_failure(link_id: int):
-    """Increment failure count, send alerts, auto-disable if needed."""
+    """Increment failure count, log warnings, auto-disable if needed."""
     from app.config import settings
 
     db = await get_db()
     try:
-        cursor = await db.execute(
-            """
+        cursor = await db.execute("""
             SELECT pl.id, pl.consecutive_failures, pl.url, pl.store, p.name, p.id as product_id
             FROM product_links pl
             JOIN products p ON p.id = pl.product_id
@@ -79,9 +64,9 @@ async def handle_scrape_failure(link_id: int):
 
         new_count = row["consecutive_failures"] + 1
 
-        # Send NTFY alert at threshold
+        # Log warning at threshold
         if new_count == settings.alert_failure_threshold:
-            await send_failure_alert(row["name"], new_count, row["url"])
+            logger.warning(f"Scrape failure: {row['name']} failed {new_count} consecutive times ({row['url']})")
 
         # Auto-disable after max failures
         if new_count >= settings.max_consecutive_failures:
@@ -94,7 +79,7 @@ async def handle_scrape_failure(link_id: int):
                 "UPDATE products SET active = 0 WHERE id = ?",
                 (row["product_id"],),
             )
-            await send_failure_alert(row["name"], new_count, row["url"])
+            logger.warning(f"Scrape failure: {row['name']} auto-disabled after {new_count} failures ({row['url']})")
         else:
             await db.execute(
                 "UPDATE product_links SET consecutive_failures = ? WHERE id = ?",

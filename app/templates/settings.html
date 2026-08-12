@@ -74,49 +74,6 @@
         </div>
         {% endif %}
 
-        <!-- NTFY Configuration -->
-        <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
-            <div class="flex items-center gap-3 mb-4">
-                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                </svg>
-                <h2 class="text-lg font-semibold text-white">Configuração NTFY</h2>
-            </div>
-            <p class="text-sm text-gray-400 mb-4">
-                Configure o servidor <a href="https://ntfy.sh" target="_blank" class="text-blue-400 hover:text-blue-300">ntfy</a>
-                para receber notificações push quando alertas forem disparados.
-            </p>
-            <form method="post" action="/settings/ntfy" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-1">URL do Servidor</label>
-                    <input type="text" name="ntfy_url"
-                           value="{{ config.get('ntfy_url', 'https://ntfy.sh') }}"
-                           placeholder="https://ntfy.sh"
-                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-1">Porta</label>
-                    <input type="text" name="ntfy_port"
-                           value="{{ config.get('ntfy_port', '') }}"
-                           placeholder="443 (padrão)"
-                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-1">Tópico</label>
-                    <input type="text" name="ntfy_topic"
-                           value="{{ config.get('ntfy_topic', '') }}"
-                           placeholder="meu-topico"
-                           class="w-full bg-dark-700 border border-dark-600 rounded-md px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
-                </div>
-                <div class="sm:col-span-3">
-                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-md transition-colors text-sm">
-                        Salvar Configuração NTFY
-                    </button>
-                </div>
-            </form>
-        </div>
-
         <!-- Scrape Interval -->
         <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
             <div class="flex items-center gap-3 mb-4">
@@ -185,10 +142,6 @@
         <div class="bg-dark-800 rounded-lg border border-dark-700 p-5">
             <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Dicas & Ajuda</h3>
             <div class="space-y-4 text-sm text-gray-400">
-                <div>
-                    <h4 class="text-gray-300 font-medium mb-1">🔔 NTFY</h4>
-                    <p>Use o app <strong>ntfy</strong> no celular para receber notificações em tempo real. Basta assinar o mesmo tópico configurado aqui.</p>
-                </div>
                 <div>
                     <h4 class="text-gray-300 font-medium mb-1">⏱️ Intervalo</h4>
                     <p>Recomendamos 4–6 horas para a maioria dos produtos. Intervalos muito curtos podem resultar em bloqueio pelas lojas.</p>

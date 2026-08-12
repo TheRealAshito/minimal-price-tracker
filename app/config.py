@@ -11,11 +11,6 @@ class Settings(BaseSettings):
     max_history_days: int = 365
     timezone: str = "America/Sao_Paulo"
 
-    # NTFY defaults
-    ntfy_url: str = ""
-    ntfy_port: str = ""
-    ntfy_topic: str = ""
-
     class Config:
         env_file = ".env"
 

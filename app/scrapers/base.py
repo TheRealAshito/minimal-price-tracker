@@ -3,98 +3,33 @@ import json
 import random
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from playwright.async_api import BrowserContext, Page
+from typing import Optional
 
 logger = logging.getLogger("price_tracker.scraper")
 
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0",
-]
 
-# Persistent browser profile directory — keeps cookies across sessions
-BROWSER_PROFILE_DIR = Path("data/browser-profile")
-
-
-@dataclass
 class ExtractionResult:
     """Result from a price extraction attempt."""
-    price: Optional[float] = None
-    method: str = ""
-    confidence: float = 0.0  # 0.0 to 1.0
-    raw_text: str = ""
+
+    def __init__(self, price=None, method="", confidence=0.0, raw_text=""):
+        self.price = price
+        self.method = method
+        self.confidence = confidence
+        self.raw_text = raw_text
 
 
 class BaseScraper(ABC):
     store_name: str
 
     # Subclasses override these for cascade extraction
-    css_selectors: list[str] = field(default_factory=list) if False else []
+    css_selectors: list[str] = []
     jsonld_price_keys: list[str] = ["price", "lowPrice", "highPrice"]
     meta_price_selectors: list[str] = [
         'meta[property="product:price:amount"]',
         'meta[name="price"]',
         'meta[itemprop="price"]',
     ]
-    regex_patterns: list[str] = field(default_factory=list) if False else []
-
-    def __init__(self):
-        self._context: Optional[BrowserContext] = None
-        self._playwright = None
-
-    async def _get_context(self):
-        """Get or create a persistent browser context (keeps cookies/profile)."""
-        if self._context is None:
-            from playwright.async_api import async_playwright
-            self._playwright = await async_playwright().start()
-
-            # Ensure profile directory exists
-            BROWSER_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
-            self._context = await self._playwright.chromium.launch_persistent_context(
-                user_data_dir=str(BROWSER_PROFILE_DIR),
-                headless=True,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-dev-shm-usage",
-                    "--no-sandbox",
-                ],
-                user_agent=random.choice(USER_AGENTS),
-                viewport={"width": 1920, "height": 1080},
-                locale="pt-BR",
-                timezone_id="America/Sao_Paulo",
-            )
-        return self._context
-
-    async def _get_page(self):
-        """Create a new page from the persistent context."""
-        context = await self._get_context()
-        page = await context.new_page()
-
-        # Apply stealth
-        try:
-            from playwright_stealth import stealth_async
-            await stealth_async(page)
-        except Exception:
-            logger.debug("Stealth patch not available, continuing without it")
-
-        return page
-
-    async def close(self):
-        if self._context:
-            await self._context.close()
-            self._context = None
-        if self._playwright:
-            await self._playwright.stop()
-            self._playwright = None
+    regex_patterns: list[str] = []
 
     # ─── Cascade extraction methods ───────────────────────────────────
 
@@ -140,7 +75,6 @@ class BaseScraper(ABC):
         if depth > 5:
             return None
         if isinstance(data, dict):
-            # Check for direct price keys
             for key in self.jsonld_price_keys:
                 if key in data:
                     val = data[key]
@@ -150,7 +84,6 @@ class BaseScraper(ABC):
                         price = self.parse_brl_price(val)
                         if price and price > 0:
                             return price
-            # Check offers
             if "offers" in data:
                 offers = data["offers"]
                 if isinstance(offers, list):
@@ -162,7 +95,6 @@ class BaseScraper(ABC):
                     result = self._extract_from_jsonld(offers, depth + 1)
                     if result:
                         return result
-            # Recurse into nested dicts
             for v in data.values():
                 if isinstance(v, (dict, list)):
                     result = self._extract_from_jsonld(v, depth + 1)
@@ -221,42 +153,35 @@ class BaseScraper(ABC):
         2. JSON-LD structured data
         3. Meta tags
         4. Regex on page source (lowest confidence)
-
-        Returns the first successful result, or None if all fail.
-        Subclasses can override css_selectors and regex_patterns.
         """
         await page.wait_for_timeout(wait_ms)
 
-        # Step 1: CSS selectors
         if self.css_selectors:
             result = await self._try_css_selectors(page, self.css_selectors)
             if result:
-                logger.debug(f"[{self.store_name}] CSS match: {result.method} → R$ {result.price}")
+                logger.debug(f"[{self.store_name}] CSS match: {result.method} -> R$ {result.price}")
                 return result
 
-        # Step 2: JSON-LD
         result = await self._try_jsonld(page)
         if result:
-            logger.debug(f"[{self.store_name}] JSON-LD match → R$ {result.price}")
+            logger.debug(f"[{self.store_name}] JSON-LD match -> R$ {result.price}")
             return result
 
-        # Step 3: Meta tags
         result = await self._try_meta_tags(page)
         if result:
-            logger.debug(f"[{self.store_name}] Meta match → R$ {result.price}")
+            logger.debug(f"[{self.store_name}] Meta match -> R$ {result.price}")
             return result
 
-        # Step 4: Regex
         if self.regex_patterns:
             result = await self._try_regex(page)
             if result:
-                logger.debug(f"[{self.store_name}] Regex match → R$ {result.price}")
+                logger.debug(f"[{self.store_name}] Regex match -> R$ {result.price}")
                 return result
 
         logger.warning(f"[{self.store_name}] All extraction methods failed")
         return None
 
-    # ─── Abstract / legacy interface ──────────────────────────────────
+    # ─── Pre-actions replay ───────────────────────────────────────────
 
     async def _replay_pre_actions(self, page, actions: list):
         """Replay recorded pre-scrape actions (click, scroll, wait, type, goto)."""
@@ -290,15 +215,15 @@ class BaseScraper(ABC):
     async def _try_custom_selector_url(self, url: str, selector: str, pre_actions: Optional[list] = None) -> Optional[float]:
         """
         Try extracting price from a URL using a custom CSS selector.
-        Opens a new page, navigates, queries the selector, parses BRL price.
-        Used by scrape() as the first extraction attempt when custom_selector is set.
+        Uses the shared browser manager. Only closes the page, not the context.
         """
-        page = await self._get_page()
+        from app.browser_manager import browser_manager
+
+        page = await browser_manager.new_page()
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=45000)
             await page.wait_for_timeout(3000)
 
-            # Replay pre-actions (cookie dismiss, language select, etc.)
             if pre_actions:
                 await self._replay_pre_actions(page, pre_actions)
 
@@ -306,21 +231,18 @@ class BaseScraper(ABC):
             if not element:
                 return None
 
-            # Try inner_text first
             text = await element.inner_text()
             if text:
                 price = self.parse_brl_price(text.strip())
                 if price and price > 0:
                     return price
 
-            # Try textContent (captures hidden text nodes)
             text = await element.evaluate("el => el.textContent")
             if text:
                 price = self.parse_brl_price(text.strip())
                 if price and price > 0:
                     return price
 
-            # Try value attribute (for input elements)
             value = await element.get_attribute("value")
             if value:
                 price = self.parse_brl_price(value.strip())
@@ -330,13 +252,14 @@ class BaseScraper(ABC):
         except Exception as e:
             logger.debug(f"[{self.store_name}] Custom selector error: {e}")
         finally:
-            await page.close()
-            await page.context.close()
+            await browser_manager.close_page(page)
         return None
+
+    # ─── Abstract / main interface ────────────────────────────────────
 
     @abstractmethod
     async def extract_price(self, url: str) -> Optional[float]:
-        """Extract price from URL. Returns price as float or None if failed."""
+        """Extract price from URL. Uses shared browser via browser_manager."""
         pass
 
     async def scrape(self, url: str, custom_selector: Optional[str] = None, pre_actions: Optional[list] = None) -> tuple[Optional[float], Optional[str]]:
@@ -344,10 +267,8 @@ class BaseScraper(ABC):
         Main scrape method. Returns (price, error_message).
         If custom_selector is provided, tries it FIRST before falling back
         to the store-specific extract_price method.
-        If pre_actions are provided, replays them before extraction.
         """
         try:
-            # Step 1: Try custom selector if provided (with pre_actions)
             if custom_selector:
                 price = await self._try_custom_selector_url(url, custom_selector, pre_actions=pre_actions)
                 if price is not None:
@@ -355,7 +276,6 @@ class BaseScraper(ABC):
                     return price, None
                 logger.debug(f"[{self.store_name}] Custom selector didn't match, falling back to store logic")
 
-            # Step 2: Fall back to store-specific extraction
             price = await self.extract_price(url)
             if price is None:
                 return None, "Could not extract price from page"
@@ -368,16 +288,12 @@ class BaseScraper(ABC):
         """Parse Brazilian Real price from text like 'R$ 1.299,90' or '1299.90'."""
         if not text:
             return None
-        # Remove currency symbol and whitespace
         cleaned = text.replace("R$", "").replace("r$", "").replace("BRL", "").strip()
-        # Remove thousands separator (.) and convert decimal comma (,) to dot
         cleaned = re.sub(r"\.(?=\d{3})", "", cleaned)
         cleaned = cleaned.replace(",", ".")
-        # Extract first number
         match = re.search(r"(\d+\.?\d*)", cleaned)
         if match:
             price = float(match.group(1))
-            # Sanity bounds: reject prices outside plausible BRL range
             if 0.50 <= price <= 1_000_000:
                 return price
         return None

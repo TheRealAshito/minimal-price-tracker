@@ -191,7 +191,8 @@ async def session_start(req: SessionStartRequest):
         raise HTTPException(400, str(e))
 
     from playwright.async_api import async_playwright
-    from app.scrapers.base import BROWSER_PROFILE_DIR
+    from app.browser_manager import _get_profile_dir
+    BROWSER_PROFILE_DIR = _get_profile_dir()
 
     pw = await async_playwright().start()
 

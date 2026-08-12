@@ -137,9 +137,6 @@ async def init_db():
 
         # Insert default settings if not present
         defaults = {
-            "ntfy_url": "",
-            "ntfy_port": "",
-            "ntfy_topic": "",
             "scrape_interval_hours": "6",
             "date_format": "DD/MM/YYYY",
         }

@@ -65,7 +65,4 @@ class PriceStats(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
-    ntfy_url: Optional[str] = None
-    ntfy_port: Optional[str] = None
-    ntfy_topic: Optional[str] = None
     scrape_interval_hours: Optional[int] = None
