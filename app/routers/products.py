@@ -270,6 +270,26 @@ async def delete_link(product_id: int, link_id: int):
     return RedirectResponse(f"/products/{product_id}", status_code=303)
 
 
+@router.post("/{product_id}/history/{history_id}/delete")
+async def delete_price_record(product_id: int, history_id: int):
+    """Delete an individual price history record (e.g. bad scrape / outlier)."""
+    db = await get_db()
+    try:
+        # Verify the record belongs to this product (join through links)
+        cursor = await db.execute("""
+            SELECT ph.id FROM price_history ph
+            JOIN product_links pl ON pl.id = ph.link_id
+            WHERE ph.id = ? AND pl.product_id = ?
+        """, (history_id, product_id))
+        if not await cursor.fetchone():
+            raise HTTPException(404, "Price record not found.")
+        await db.execute("DELETE FROM price_history WHERE id = ?", (history_id,))
+        await db.commit()
+    finally:
+        await db.close()
+    return RedirectResponse(f"/products/{product_id}", status_code=303)
+
+
 @router.get("/{product_id}/export")
 async def export_csv(product_id: int):
     csv_data = await export_product_csv(product_id)

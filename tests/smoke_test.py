@@ -116,6 +116,27 @@ async def test():
             row = await cur.fetchone()
             ok("cleared in DB", row[0] is None and row[1] is None)
 
+        # ── Delete individual price record ──────────────────────
+        async with aiosqlite.connect(TEST_DB) as conn:
+            await conn.execute(
+                "INSERT INTO price_history (link_id, price, status) VALUES (1, 99.99, 'success')"
+            )
+            await conn.commit()
+            cur = await conn.execute("SELECT id FROM price_history WHERE price = 99.99")
+            price_row = await cur.fetchone()
+            test_price_id = price_row[0]
+
+        r = await c.post(f"/products/1/history/{test_price_id}/delete")
+        ok("delete price record", r.status_code == 303)
+
+        async with aiosqlite.connect(TEST_DB) as conn:
+            cur = await conn.execute("SELECT id FROM price_history WHERE id = ?", (test_price_id,))
+            ok("price record deleted", (await cur.fetchone()) is None)
+
+        # Non-existent record should 404
+        r = await c.post("/products/1/history/99999/delete")
+        ok("delete nonexistent price 404", r.status_code == 404)
+
         # ── NULL safety ────────────────────────────────────────
         async with aiosqlite.connect(TEST_DB) as conn:
             await conn.execute("UPDATE product_links SET consecutive_failures = NULL WHERE id=1")

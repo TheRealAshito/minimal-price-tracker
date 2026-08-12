@@ -115,7 +115,7 @@ async def get_price_history(product_id: int, limit: int = 100):
     try:
         cursor = await db.execute(
             """
-            SELECT ph.price, ph.status, ph.scraped_at, pl.store, pl.url
+            SELECT ph.id, ph.price, ph.status, ph.scraped_at, pl.store, pl.url
             FROM price_history ph
             JOIN product_links pl ON pl.id = ph.link_id
             WHERE pl.product_id = ?
