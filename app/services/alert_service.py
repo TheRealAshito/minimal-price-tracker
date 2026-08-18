@@ -62,7 +62,7 @@ async def handle_scrape_failure(link_id: int):
         if not row:
             return
 
-        new_count = row["consecutive_failures"] + 1
+        new_count = (row["consecutive_failures"] or 0) + 1
 
         # Log warning at threshold
         if new_count == settings.alert_failure_threshold:
