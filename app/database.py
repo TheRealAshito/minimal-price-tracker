@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS product_links (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id INTEGER NOT NULL,
     url TEXT NOT NULL,
-    store TEXT NOT NULL CHECK(store IN ('kabum', 'shopee', 'amazon', 'aliexpress', 'terabyte', 'generic')),
+    store TEXT NOT NULL CHECK(store IN ('kabum', 'shopee', 'amazon', 'aliexpress', 'terabyte', 'pichau', 'generic')),
     custom_selector TEXT,
     pre_actions TEXT,
     consecutive_failures INTEGER DEFAULT 0,
@@ -133,12 +133,23 @@ async def init_db():
                     if needs_v5_migration:
                         await _migrate_v4_to_v5(db)
                     else:
-                        await db.executescript(SCHEMA)
+                        # Check if we need v5→v6 migration (add pichau to CHECK)
+                        needs_v6_migration = False
+                        if await _table_exists(db, "product_links"):
+                            check = await _get_check_constraint(db, "product_links", "store")
+                            if "pichau" not in check:
+                                needs_v6_migration = True
+
+                        if needs_v6_migration:
+                            await _migrate_v5_to_v6(db)
+                        else:
+                            await db.executescript(SCHEMA)
 
         # Insert default settings if not present
         defaults = {
             "scrape_interval_hours": "6",
             "date_format": "DD/MM/YYYY",
+            "flaresolverr_url": "",
         }
         for key, value in defaults.items():
             await db.execute(
@@ -322,3 +333,59 @@ async def _migrate_v4_to_v5(db):
     await db.execute("ALTER TABLE product_links ADD COLUMN pre_actions TEXT")
     await db.commit()
     logger.info("Migration v4→v5 complete. pre_actions column added.")
+
+
+async def _migrate_v5_to_v6(db):
+    """Migrate from v5 to v6: add pichau to store CHECK constraint."""
+    logger.info("Migrating database from v5 to v6 schema (adding pichau store)...")
+
+    # Read all existing data
+    cursor = await db.execute("SELECT * FROM products")
+    products = await cursor.fetchall()
+
+    cursor2 = await db.execute("SELECT * FROM product_links")
+    links = await cursor2.fetchall()
+
+    cursor3 = await db.execute("SELECT * FROM price_history")
+    history = await cursor3.fetchall()
+
+    cursor4 = await db.execute("SELECT key, value FROM settings")
+    settings = await cursor4.fetchall()
+
+    # Drop old tables
+    await db.execute("DROP TABLE IF EXISTS price_history")
+    await db.execute("DROP TABLE IF EXISTS product_links")
+    await db.execute("DROP TABLE IF EXISTS products")
+    await db.execute("DROP TABLE IF EXISTS settings")
+
+    # Create new schema with updated CHECK
+    await db.executescript(SCHEMA)
+
+    # Restore data
+    for p in products:
+        await db.execute(
+            "INSERT INTO products (id, name, alert_price_abs, alert_price_pct, alert_below_mean, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (p[0], p[1], p[2], p[3], p[4], p[5], p[6]),
+        )
+
+    for l in links:
+        # v5 schema: id, product_id, url, store, custom_selector, pre_actions, consecutive_failures, created_at
+        await db.execute(
+            "INSERT INTO product_links (id, product_id, url, store, custom_selector, pre_actions, consecutive_failures, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7]),
+        )
+
+    for h in history:
+        await db.execute(
+            "INSERT INTO price_history (id, link_id, price, status, error_message, scraped_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (h[0], h[1], h[2], h[3], h[4], h[5]),
+        )
+
+    for s in settings:
+        await db.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+            (s[0], s[1]),
+        )
+
+    await db.commit()
+    logger.info(f"Migration v5→v6 complete. {len(products)} products, {len(links)} links, {len(history)} price records preserved. pichau store added.")

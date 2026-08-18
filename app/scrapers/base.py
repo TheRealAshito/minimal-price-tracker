@@ -265,10 +265,13 @@ class BaseScraper(ABC):
     async def scrape(self, url: str, custom_selector: Optional[str] = None, pre_actions: Optional[list] = None) -> tuple[Optional[float], Optional[str]]:
         """
         Main scrape method. Returns (price, error_message).
-        If custom_selector is provided, tries it FIRST before falling back
-        to the store-specific extract_price method.
+        Priority:
+        1. Custom selector (if set)
+        2. Store-specific extract_price (Playwright)
+        3. FlareSolverr fallback (if configured)
         """
         try:
+            # Step 1: Try custom selector
             if custom_selector:
                 price = await self._try_custom_selector_url(url, custom_selector, pre_actions=pre_actions)
                 if price is not None:
@@ -276,12 +279,82 @@ class BaseScraper(ABC):
                     return price, None
                 logger.debug(f"[{self.store_name}] Custom selector didn't match, falling back to store logic")
 
+            # Step 2: Try normal Playwright scrape
             price = await self.extract_price(url)
-            if price is None:
-                return None, "Could not extract price from page"
-            return price, None
+            if price is not None:
+                return price, None
+
+            # Step 3: FlareSolverr fallback
+            logger.info(f"[{self.store_name}] Normal scrape failed, trying FlareSolverr fallback...")
+            price = await self._flaresolverr_fallback(url)
+            if price is not None:
+                logger.info(f"[{self.store_name}] FlareSolverr fallback: R$ {price:,.2f}")
+                return price, None
+
+            return None, "Could not extract price from page (tried normal + FlareSolverr)"
         except Exception as e:
             return None, str(e)[:500]
+
+    async def _flaresolverr_fallback(self, url: str) -> Optional[float]:
+        """
+        Use FlareSolverr to bypass Cloudflare/bot protection.
+        Gets rendered HTML and parses it for price data.
+        """
+        from app.flare_solverr import solve
+
+        result = await solve(url)
+        if not result or not result.get("html"):
+            return None
+
+        html = result["html"]
+        price = self._parse_html_for_price(html)
+        return price
+
+    def _parse_html_for_price(self, html: str) -> Optional[float]:
+        """
+        Parse rendered HTML for price using JSON-LD, meta tags, and regex.
+        Works on raw HTML strings (no Playwright DOM needed).
+        """
+        # Step 1: JSON-LD structured data
+        ld_pattern = r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>'
+        for match in re.finditer(ld_pattern, html, re.DOTALL):
+            try:
+                data = json.loads(match.group(1))
+                price = self._extract_from_jsonld(data)
+                if price and price > 0:
+                    logger.debug(f"[{self.store_name}] FlareSolverr JSON-LD match: R$ {price}")
+                    return price
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        # Step 2: Meta tags
+        for selector in self.meta_price_selectors:
+            attr_match = re.search(r'\[([^=\]]+)="([^"]+)"\]', selector)
+            if attr_match:
+                attr_name, attr_value = attr_match.groups()
+                pattern = rf'<meta[^>]*{attr_name}="{re.escape(attr_value)}"[^>]*content="([^"]*)"'
+                m = re.search(pattern, html, re.IGNORECASE)
+                if not m:
+                    # Try reversed attribute order
+                    pattern = rf'<meta[^>]*content="([^"]*)"[^>]*{attr_name}="{re.escape(attr_value)}"'
+                    m = re.search(pattern, html, re.IGNORECASE)
+                if m:
+                    price = self.parse_brl_price(m.group(1))
+                    if price and price > 0:
+                        logger.debug(f"[{self.store_name}] FlareSolverr meta match: R$ {price}")
+                        return price
+
+        # Step 3: Regex patterns
+        for pattern in self.regex_patterns:
+            m = re.search(pattern, html)
+            if m:
+                price = self.parse_brl_price(m.group(1))
+                if price and price > 0:
+                    logger.debug(f"[{self.store_name}] FlareSolverr regex match: R$ {price}")
+                    return price
+
+        logger.debug(f"[{self.store_name}] FlareSolverr HTML parsing found no price")
+        return None
 
     @staticmethod
     def parse_brl_price(text: str) -> Optional[float]:

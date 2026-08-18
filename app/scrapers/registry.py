@@ -6,6 +6,7 @@ from app.scrapers.shopee import ShopeeScraper
 from app.scrapers.amazon import AmazonScraper
 from app.scrapers.aliexpress import AliExpressScraper
 from app.scrapers.terabyte import TerabyteScraper
+from app.scrapers.pichau import PichauScraper
 from app.scrapers.generic import GenericScraper
 
 SCRAPERS = {
@@ -14,6 +15,7 @@ SCRAPERS = {
     "amazon": AmazonScraper,
     "aliexpress": AliExpressScraper,
     "terabyte": TerabyteScraper,
+    "pichau": PichauScraper,
     "generic": GenericScraper,
 }
 
@@ -23,6 +25,7 @@ ALLOWED_STORE_DOMAINS = {
     "amazon": ["amazon.com.br", "amazon.com"],
     "aliexpress": ["aliexpress.com", "aliexpress.us", "aliexpress.ru"],
     "terabyte": ["terabyteshop.com.br"],
+    "pichau": ["pichau.com.br"],
     # "generic" has no domain restriction — any URL is allowed
 }
 
@@ -47,6 +50,8 @@ def detect_store(url: str) -> str:
         return "aliexpress"
     elif "terabyteshop.com.br" in url_lower or "terabyte.com.br" in url_lower:
         return "terabyte"
+    elif "pichau.com.br" in url_lower:
+        return "pichau"
     # Unknown site — use generic scraper
     return "generic"
 

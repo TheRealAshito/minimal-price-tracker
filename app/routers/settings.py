@@ -66,6 +66,23 @@ async def update_date_format(date_format: str = Form("DD/MM/YYYY")):
     return RedirectResponse("/settings", status_code=303)
 
 
+@router.post("/flaresolverr")
+async def update_flaresolverr(flaresolverr_url: str = Form("")):
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE settings SET value = ? WHERE key = 'flaresolverr_url'",
+            (flaresolverr_url.strip(),),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    # Clear FlareSolverr cache when URL changes
+    from app.flare_solverr import clear_cache
+    clear_cache()
+    return RedirectResponse("/settings", status_code=303)
+
+
 @router.post("/backup")
 async def create_backup():
     path = await export_backup()

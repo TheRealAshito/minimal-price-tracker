@@ -61,6 +61,23 @@ async def test():
         r = await c.get("/debug/memory")
         ok("GET /debug/memory", r.status_code == 200 and "process" in r.json() and "rss_mb" in r.json()["process"])
 
+        # ── FlareSolverr settings ─────────────────────────────
+        r = await c.post("/settings/flaresolverr", data={"flaresolverr_url": "http://192.168.1.200:8191"}, follow_redirects=False)
+        ok("set flaresolverr url", r.status_code == 303)
+
+        async with aiosqlite.connect(TEST_DB) as conn:
+            cur = await conn.execute("SELECT value FROM settings WHERE key='flaresolverr_url'")
+            row = await cur.fetchone()
+            ok("flaresolverr url persisted", row and row[0] == "http://192.168.1.200:8191")
+
+        r = await c.post("/settings/flaresolverr", data={"flaresolverr_url": ""}, follow_redirects=False)
+        ok("clear flaresolverr url", r.status_code == 303)
+
+        # ── Pichau store detection ─────────────────────────────
+        from app.scrapers.registry import detect_store
+        ok("detect pichau", detect_store("https://www.pichau.com.br/hardware/placa-de-video") == "pichau")
+        ok("detect terabyte", detect_store("https://www.terabyteshop.com.br/produto/12345") == "terabyte")
+
         # ── Product CRUD ───────────────────────────────────────
         r = await c.post("/products/add", data={"name": "Test GPU"})
         ok("create product", r.status_code == 303)
